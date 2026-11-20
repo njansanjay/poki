@@ -81,6 +81,42 @@ internal sealed class CatMotion
         Math.Max(area.Top, area.Bottom - size));
 }
 
+internal static class FullscreenDetector
+{
+    [StructLayout(LayoutKind.Sequential)] private struct NativeRect { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)] private struct MonitorInfo
+    {
+        public int Size;
+        public NativeRect Monitor;
+        public NativeRect Work;
+        public uint Flags;
+    }
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr window, out NativeRect rectangle);
+    [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr window, uint flags);
+    [DllImport("user32.dll", CharSet = CharSet.Auto)] private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+    [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr window);
+
+    internal static bool CoversMonitor(Rectangle window, Rectangle monitor, int tolerance = 2) =>
+        window.Left <= monitor.Left + tolerance && window.Top <= monitor.Top + tolerance &&
+        window.Right >= monitor.Right - tolerance && window.Bottom >= monitor.Bottom - tolerance;
+
+    internal static bool IsForegroundFullscreen(Rectangle catMonitor, int ownProcessId)
+    {
+        var foreground = GetForegroundWindow();
+        if (foreground == IntPtr.Zero || IsIconic(foreground)) return false;
+        GetWindowThreadProcessId(foreground, out var processId);
+        if (processId == ownProcessId) return false;
+        var monitorHandle = MonitorFromWindow(foreground, 2);
+        var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        if (monitorHandle == IntPtr.Zero || !GetMonitorInfo(monitorHandle, ref info) || !GetWindowRect(foreground, out var native)) return false;
+        var monitor = Rectangle.FromLTRB(info.Monitor.Left, info.Monitor.Top, info.Monitor.Right, info.Monitor.Bottom);
+        if (monitor != catMonitor) return false;
+        return CoversMonitor(Rectangle.FromLTRB(native.Left, native.Top, native.Right, native.Bottom), monitor);
+    }
+}
+
 internal sealed class LayeredCat : IDisposable
 {
     [StructLayout(LayoutKind.Sequential, Pack = 1)] private struct Blend { public byte Operation, Flags, Alpha, Format; }

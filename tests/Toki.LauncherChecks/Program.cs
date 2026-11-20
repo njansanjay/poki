@@ -56,6 +56,7 @@ internal static class Program
         var oldSettings = JsonSerializer.Deserialize<AppData>("{}");
         Check(oldSettings?.PrimaryView == "Shortcuts", "Existing installations default to the shortcut launcher");
         Check(oldSettings?.WindowOpacity == 90, "Existing installations get a readable translucent window");
+        Check(oldSettings?.HideCatInFullscreen == true, "Existing installations hide the cat during fullscreen use");
         var appearance = JsonSerializer.Deserialize<AppData>(JsonSerializer.Serialize(new AppData { WindowOpacity = 70 }));
         Check(appearance?.WindowOpacity == 70, "Window opacity persists with app settings");
         foreach (var name in PrimaryViews.Names)
@@ -100,6 +101,10 @@ internal static class Program
         Check(cat.X == pausedX && cat.Frame == 4, "Cat stops under the pointer for easy clicking");
         cat.Advance(0.1, catArea, 96, false, false);
         Check(cat.X == pausedX && cat.Frame == 4, "Disabling motion leaves a seated cat");
+        var monitor = new Rectangle(0, 0, 1920, 1080);
+        Check(FullscreenDetector.CoversMonitor(new Rectangle(0, 0, 1920, 1080), monitor), "Fullscreen window covers the monitor");
+        Check(!FullscreenDetector.CoversMonitor(new Rectangle(0, 0, 1920, 1040), monitor), "Maximized work-area window is not fullscreen");
+        Check(FullscreenDetector.CoversMonitor(new Rectangle(-1, -1, 1922, 1082), monitor), "Bordered fullscreen window is detected with tolerance");
         Check(Math.Abs(LayeredRobot.FloatOffset(Math.PI / 2) - 3) < 0.001, "Floating motion stays within three pixels");
         Check(LayeredRobot.FloatOffset(0.1) > 0 && LayeredRobot.FloatOffset(0.1) < 1, "Floating motion retains fractional-pixel positions");
         using (var menuButton = new LauncherActionButton(true))

@@ -105,7 +105,7 @@ internal sealed class TokiApp : ApplicationContext
             launcher.VisibleChanged += (_, _) => { if (!launcher.Visible && !orb.IsDisposed) orb.RestoreCat(); };
         }
         var anchor = orb.Bounds;
-        orb.Hide();
+        orb.HideForLauncher();
         launcher.ShowNear(anchor);
     }
     internal void OpenShortcutSettings() { Open(4); chat?.FocusShortcutSettings(); }
@@ -171,6 +171,9 @@ internal sealed class OrbForm : Form
     private readonly Stopwatch floatClock = Stopwatch.StartNew();
     private readonly System.Windows.Forms.Timer floatTimer = new() { Interval = 16 };
     private readonly LayeredCat catRenderer = new();
+    private bool hiddenForFullscreen;
+    private bool launcherActive;
+    private long nextFullscreenCheck;
     public OrbForm(TokiApp app)
     {
         this.app = app;
@@ -200,17 +203,48 @@ internal sealed class OrbForm : Form
         floatTimer.Tick += (_, _) => AnimateFloat();
     }
     protected override CreateParams CreateParams { get { var parameters = base.CreateParams; parameters.ExStyle |= 0x00080000; return parameters; } }
-    protected override void OnShown(EventArgs e) { base.OnShown(e); ClampToScreen(); motion.Place(Left); catRenderer.Render(this); floatClock.Restart(); floatTimer.Start(); }
-    internal void RestoreCat() { ClampToScreen(); motion.Place(Left); Show(); catRenderer.Render(this); }
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e); ClampToScreen(); motion.Place(Left); floatClock.Restart(); floatTimer.Start();
+        if (!UpdateFullscreenVisibility(true)) catRenderer.Render(this);
+    }
+    internal void HideForLauncher() { launcherActive = true; Hide(); }
+    internal void RestoreCat()
+    {
+        launcherActive = false; ClampToScreen(); motion.Place(Left);
+        if (!UpdateFullscreenVisibility(true)) { Show(); catRenderer.Render(this); }
+    }
     private void AnimateFloat()
     {
         var elapsed = Math.Min(floatClock.Elapsed.TotalSeconds, 0.1); floatClock.Restart();
-        if (!Visible || pointerDown) return;
+        if (UpdateFullscreenVisibility() || !Visible || pointerDown) return;
         var area = Screen.FromRectangle(Bounds).WorkingArea;
         motion.Advance(elapsed, area, Width, app.Data.FloatAnimation && SystemInformation.UIEffectsEnabled,
             Bounds.Contains(Cursor.Position) || ContextMenuStrip?.Visible == true);
         Location = CatMotion.GroundLocation(area, Width, motion.X);
         catRenderer.Render(this, motion.Frame, motion.FacingLeft);
+    }
+    private bool UpdateFullscreenVisibility(bool force = false)
+    {
+        if (launcherActive) return true;
+        var now = Environment.TickCount64;
+        if (!force && now < nextFullscreenCheck) return hiddenForFullscreen;
+        nextFullscreenCheck = now + 250;
+        var shouldHide = app.Data.HideCatInFullscreen &&
+            FullscreenDetector.IsForegroundFullscreen(Screen.FromRectangle(Bounds).Bounds, Environment.ProcessId);
+        if (shouldHide)
+        {
+            hiddenForFullscreen = true;
+            if (Visible) Hide();
+            return true;
+        }
+        if (hiddenForFullscreen)
+        {
+            hiddenForFullscreen = false;
+            Show();
+            catRenderer.Render(this, motion.Frame, motion.FacingLeft);
+        }
+        return false;
     }
     private void ClampToScreen()
     {
@@ -224,7 +258,7 @@ internal sealed class OrbForm : Form
         MaximumSize = Size.Empty; MinimumSize = new Size(size, size); MaximumSize = MinimumSize; Size = MinimumSize;
         ClampToScreen(); motion.Place(Left);
         catRenderer.Dispose();
-        if (IsHandleCreated) catRenderer.Render(this);
+        if (!UpdateFullscreenVisibility(true) && IsHandleCreated && Visible) catRenderer.Render(this);
     }
     protected override void OnHandleCreated(EventArgs e)
     {
@@ -1088,6 +1122,9 @@ internal sealed class ChatForm : Form
         var floatAnimation = new TokiToggle { Text = "Cat animation", Description = "Walk, blink and swish the tail. Pause to keep the cat seated.", Checked = app.Data.FloatAnimation };
         floatAnimation.CheckedChanged += (_, _) => { app.Data.FloatAnimation = floatAnimation.Checked; app.Save(); app.ApplyAppearance(); };
         launcherSection.Controls.Add(floatAnimation);
+        var hideInFullscreen = new TokiToggle { Text = "Hide cat in fullscreen", Description = "Keep the cat out of the way during fullscreen videos, games and presentations.", Checked = app.Data.HideCatInFullscreen };
+        hideInFullscreen.CheckedChanged += (_, _) => { app.Data.HideCatInFullscreen = hideInFullscreen.Checked; app.Save(); app.ApplyAppearance(); };
+        launcherSection.Controls.Add(hideInFullscreen);
         launcherSection.Controls.Add(new Label { Text = "Cat size (40–192 pixels, applies immediately)", AutoSize = true });
         var size = new TokiNumber { Minimum = 40, Maximum = 192, Increment = 4, Value = Math.Clamp(app.Data.OrbSize, 40, 192), Width = 140, AccessibleName = "Desktop cat size in pixels" };
         size.ValueChanged += (_, _) => { app.Data.OrbSize = (int)size.Value; app.Save(); app.ApplyAppearance(); };
