@@ -56,7 +56,7 @@ internal sealed class BrandWordmark : Control
     public BrandWordmark()
     {
         DoubleBuffered = true; ForeColor = Color.White;
-        Font = new Font("Segoe UI Semibold", 22, FontStyle.Bold);
+        Font = UiTheme.TextFont(22, true);
         AccessibleName = "TOKI"; AccessibleRole = AccessibleRole.Graphic;
     }
     protected override void OnPaint(PaintEventArgs e)
@@ -269,7 +269,7 @@ internal sealed class ShortcutLauncherForm : Form
         Text = "TOKI · Shortcuts"; Icon = BrandAssets.CreateIcon();
         FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; StartPosition = FormStartPosition.Manual;
         AutoScaleMode = AutoScaleMode.None;
-        BackColor = UiTheme.Canvas; ForeColor = Color.White; Font = new Font("Segoe UI", 10);
+        BackColor = UiTheme.Canvas; ForeColor = Color.White; Font = UiTheme.TextFont(10);
         ApplyOpacity();
         Padding = new Padding(14); KeyPreview = true; DoubleBuffered = true;
         var header = new Panel { Dock = DockStyle.Top, Height = 60 };

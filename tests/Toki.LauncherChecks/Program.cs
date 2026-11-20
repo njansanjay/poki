@@ -16,8 +16,9 @@ internal static class Program
         checks++; Console.WriteLine("PASS: " + name);
     }
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
+        if (args.Contains("--render-ui")) { RenderUi(); return; }
         // No account access, app launches, network calls or writes to the user's TOKI data.
         using (var field = new TokiTextBox { Size = new Size(320, 44), Text = "Draft", PlaceholderText = "Message" })
         {
@@ -46,6 +47,11 @@ internal static class Program
         {
             var due = new DateTime(2027, 3, 17, 15, 45, 0); date.Value = due;
             Check(date.Value == due, "Dark date field preserves the selected date and time");
+        }
+        using (var number = new TokiNumber { Minimum = 40, Maximum = 192, Value = 96 })
+        {
+            number.Value = 500; Check(number.Value == 192, "Cat size control caps large values");
+            number.Value = -1; Check(number.Value == 40, "Cat size control caps small values");
         }
         var oldSettings = JsonSerializer.Deserialize<AppData>("{}");
         Check(oldSettings?.PrimaryView == "Shortcuts", "Existing installations default to the shortcut launcher");
@@ -154,5 +160,38 @@ internal static class Program
             Directory.Delete(testDirectory);
         }
         Console.WriteLine($"{checks} launcher checks passed.");
+    }
+    private static void RenderUi()
+    {
+        // Construct only the view. No tray, timers, account data, startup writes or app context are started.
+        UiTheme.Initialize();
+        var app = (TokiApp)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(TokiApp));
+        typeof(TokiApp).GetField("Data", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .SetValue(app, new AppData { WindowOpacity = 100 });
+        using var form = new ChatForm(app);
+        // A non-top-level view hosted in a control can render without opening a desktop window.
+        using var host = new Panel { Size = form.Size };
+        form.TopLevel = false; host.Controls.Add(form); form.Visible = true;
+        host.CreateControl(); form.CreateControl();
+        Directory.CreateDirectory(".dist/ui-renders");
+        foreach (var page in new[] { 4, 5, 0, 1, 2, 3 })
+        {
+            form.SelectTab(page); form.PerformLayout();
+            using var bitmap = new Bitmap(form.Width, form.Height);
+            form.DrawToBitmap(bitmap, form.ClientRectangle);
+            bitmap.Save($".dist/ui-renders/page-{page}.png");
+        }
+        form.SelectTab(4);
+        foreach (var category in new[] { "Appearance", "Desktop cat" })
+        {
+            typeof(ChatForm).GetMethod("ShowSettingsCategory", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(form, new object[] { category });
+            form.PerformLayout(); using var image = new Bitmap(form.Width, form.Height);
+            form.DrawToBitmap(image, form.ClientRectangle); image.Save($".dist/ui-renders/{category.Replace(' ', '-')}.png");
+        }
+        typeof(ChatForm).GetMethod("ShowSettingsCategory", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(form, new object[] { "General" });
+        form.SelectTab(4); form.Size = form.MinimumSize; form.PerformLayout();
+        using var small = new Bitmap(form.Width, form.Height);
+        form.DrawToBitmap(small, form.ClientRectangle); small.Save(".dist/ui-renders/settings-small.png");
+        Console.WriteLine("Rendered isolated UI with empty fixture data.");
     }
 }
