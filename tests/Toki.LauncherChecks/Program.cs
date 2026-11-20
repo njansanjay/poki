@@ -19,8 +19,39 @@ internal static class Program
     private static void Main()
     {
         // No account access, app launches, network calls or writes to the user's TOKI data.
+        using (var field = new TokiTextBox { Size = new Size(320, 44), Text = "Draft", PlaceholderText = "Message" })
+        {
+            var editor = field.Controls.OfType<TextBox>().Single();
+            field.PerformLayout();
+            Check(editor.BorderStyle == BorderStyle.None && editor.BackColor == field.BackColor,
+                "Text editor uses the field surface without a second native border");
+            Check(editor.Left >= 10 && editor.Right <= field.Width - 10 && editor.Top >= 0 && editor.Bottom <= field.Height,
+                "Single-line text has padding and fits its field");
+            var changed = false;
+            field.TextChanged += (_, _) => changed = true;
+            editor.Text = "Edited draft";
+            Check(changed && field.Text == "Edited draft", "Native editing updates the field value and change event");
+            field.Multiline = true; field.Height = 120; field.PerformLayout();
+            Check(editor.Height >= 90 && editor.Bottom <= field.Height - 10, "Multiline editor fills its padded field");
+            field.Clear();
+            Check(editor.TextLength == 0 && field.TextLength == 0, "Clearing the composer clears the native editor");
+        }
+        using (var choice = new TokiComboBox())
+        {
+            choice.Items.AddRange(new object[] { "None", "Daily", "Weekly" }); choice.SelectedIndex = 1;
+            Check(choice.Text == "Daily" && choice.DrawMode == DrawMode.OwnerDrawFixed,
+                "Themed dropdown preserves selected values and custom drawing");
+        }
+        using (var date = new DarkDateTimeInput())
+        {
+            var due = new DateTime(2027, 3, 17, 15, 45, 0); date.Value = due;
+            Check(date.Value == due, "Dark date field preserves the selected date and time");
+        }
         var oldSettings = JsonSerializer.Deserialize<AppData>("{}");
         Check(oldSettings?.PrimaryView == "Shortcuts", "Existing installations default to the shortcut launcher");
+        Check(oldSettings?.WindowOpacity == 90, "Existing installations get a readable translucent window");
+        var appearance = JsonSerializer.Deserialize<AppData>(JsonSerializer.Serialize(new AppData { WindowOpacity = 70 }));
+        Check(appearance?.WindowOpacity == 70, "Window opacity persists with app settings");
         foreach (var name in PrimaryViews.Names)
         {
             var data = new AppData { PrimaryView = name };

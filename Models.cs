@@ -11,6 +11,7 @@ public sealed class AppData
     public int OrbSize { get; set; } = 96;
     public bool FloatAnimation { get; set; } = true;
     public bool TopMost { get; set; } = true;
+    public int WindowOpacity { get; set; } = 90;
     public bool StartWithWindows { get; set; }
     public bool Notifications { get; set; } = true;
     public bool SpeakResponses { get; set; }

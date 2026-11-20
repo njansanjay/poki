@@ -107,8 +107,8 @@ internal sealed class TokiApp : ApplicationContext
     internal void ApplyAppearance()
     {
         orb.ApplyAppearance();
-        if (chat != null) chat.TopMost = Data.TopMost;
-        if (launcher != null) launcher.TopMost = Data.TopMost;
+        if (chat != null) { chat.TopMost = Data.TopMost; chat.ApplyOpacity(); }
+        if (launcher != null) { launcher.TopMost = Data.TopMost; launcher.ApplyOpacity(); }
     }
     internal void Notify(string title, string message)
     {
@@ -269,11 +269,11 @@ internal sealed class ChatForm : Form
     [DllImport("user32.dll", SetLastError = true)] private static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
     [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr window, int attribute, ref int value, int size);
     [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)] private static extern int SetWindowTheme(IntPtr window, string? applicationName, string? idList);
-    private static readonly Color Canvas = Color.FromArgb(13, 17, 27);
-    private static readonly Color Surface = Color.FromArgb(22, 28, 42);
-    private static readonly Color InputSurface = Color.FromArgb(32, 40, 57);
-    private static readonly Color Accent = Color.FromArgb(113, 119, 255);
-    private static readonly Color Muted = Color.FromArgb(154, 168, 190);
+    private static readonly Color Canvas = UiTheme.Canvas;
+    private static readonly Color Surface = UiTheme.Panel;
+    private static readonly Color InputSurface = UiTheme.Field;
+    private static readonly Color Accent = UiTheme.Accent;
+    private static readonly Color Muted = UiTheme.Muted;
     private readonly TokiApp app;
     private readonly Panel pageHost = new() { Dock = DockStyle.Fill, BackColor = Canvas };
     private readonly List<Panel> pages = new();
@@ -282,7 +282,7 @@ internal sealed class ChatForm : Form
     private readonly TokiTextBox input = new() { Flat = true, Dock = DockStyle.Fill, Multiline = true, BorderStyle = BorderStyle.None, PlaceholderText = "Ask TOKI anything..." };
     private readonly FlowLayoutPanel reminders = new() { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
     private readonly Label usageStatus = new() { AutoSize = true };
-    private readonly Label hotkeyHint = new() { AutoSize = true, ForeColor = Color.FromArgb(159, 171, 194), Anchor = AnchorStyles.Right };
+    private readonly Label hotkeyHint = new() { AutoSize = true, ForeColor = UiTheme.Muted, Anchor = AnchorStyles.Right };
     private readonly TokiTextBox keyBox = new() { UseSystemPasswordChar = true, Width = 280 };
     private readonly TokiTextBox modelBox = new() { Width = 280 };
     private readonly TokiTextBox urlBox = new() { Width = 280 };
@@ -315,6 +315,7 @@ internal sealed class ChatForm : Form
         Text = "TOKI  ·  Desktop assistant"; Size = new Size(1080, 760); MinimumSize = new Size(780, 580);
         StartPosition = FormStartPosition.CenterScreen; TopMost = app.Data.TopMost;
         BackColor = Canvas; ForeColor = Color.White; Icon = TokiIcon.Create();
+        ApplyOpacity();
         Font = new Font("Segoe UI", 10);
         AutoScaleMode = AutoScaleMode.Dpi;
         FormClosing += (_, e) => { if (e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; Hide(); } };
@@ -322,7 +323,7 @@ internal sealed class ChatForm : Form
         foreach (var page in pages) { page.Dock = DockStyle.Fill; page.Visible = false; pageHost.Controls.Add(page); }
         var shell = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, BackColor = Canvas, Margin = Padding.Empty, Padding = Padding.Empty };
         shell.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 212)); shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        var sidebar = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 24, 37), Padding = new Padding(14, 22, 14, 18) };
+        var sidebar = new Panel { Dock = DockStyle.Fill, BackColor = UiTheme.Sidebar, Padding = new Padding(14, 22, 14, 18) };
         var logo = new BrandWordmark { Dock = DockStyle.Top, Height = 72 };
         sidebar.Controls.Add(logo);
         var navHost = new FlowLayoutPanel { Location = new Point(14, 106), Size = new Size(184, 308), FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = sidebar.BackColor };
@@ -331,7 +332,7 @@ internal sealed class ChatForm : Form
         foreach (var i in new[] { 5, 0, 1, 2, 3, 4 })
         {
             var index = i;
-            var nav = new Button { Text = $"  {symbols[i]}     {names[i]}", Width = 180, Height = 42, FlatStyle = FlatStyle.Flat,
+            var nav = new TokiButton { Text = $"  {symbols[i]}     {names[i]}", Width = 180, Height = 42, FlatStyle = FlatStyle.Flat,
                 TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI Semibold", 10), Cursor = Cursors.Hand, Margin = new Padding(0, 0, 0, 7) };
             nav.FlatAppearance.BorderSize = 0;
             nav.Click += (_, _) => SelectTab(index);
@@ -359,6 +360,7 @@ internal sealed class ChatForm : Form
         base.OnHandleCreated(e);
         try { var enabled = 1; DwmSetWindowAttribute(Handle, 20, ref enabled, sizeof(int)); } catch { }
     }
+    internal void ApplyOpacity() => Opacity = Math.Clamp(app.Data.WindowOpacity, 55, 100) / 100.0;
     private void ApplyTheme(Control root)
     {
         foreach (Control control in root.Controls)
@@ -386,7 +388,7 @@ internal sealed class ChatForm : Form
                     box.DrawItem += (_, e) =>
                     {
                         if (e.Index < 0 || e.Index >= box.Items.Count) return;
-                        using var fill = new SolidBrush((e.State & DrawItemState.Selected) != 0 ? Color.FromArgb(58, 68, 104) : InputSurface);
+                        using var fill = new SolidBrush((e.State & DrawItemState.Selected) != 0 ? UiTheme.Selected : InputSurface);
                         e.Graphics.FillRectangle(fill, e.Bounds);
                         TextRenderer.DrawText(e.Graphics, box.Items[e.Index]?.ToString() ?? "", box.Font, e.Bounds, Color.White,
                             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
@@ -407,9 +409,9 @@ internal sealed class ChatForm : Form
         sectionDescription.Text = descriptions[selected];
         for (var i = 0; i < navigation.Length; i++)
         {
-            navigation[i].BackColor = i == selected ? Color.FromArgb(40, 48, 78) : Color.FromArgb(18, 24, 37);
+            navigation[i].BackColor = i == selected ? UiTheme.Selected : UiTheme.Sidebar;
             navigation[i].ForeColor = i == selected ? Color.White : Muted;
-            navigation[i].FlatAppearance.MouseOverBackColor = Color.FromArgb(40, 48, 65);
+            navigation[i].FlatAppearance.MouseOverBackColor = UiTheme.Hover;
         }
     }
     public void SelectTab(int index)
@@ -422,13 +424,13 @@ internal sealed class ChatForm : Form
     private static Button Button(string text, EventHandler click)
     {
         var b = new TokiButton { Text = text, AutoSize = true, MinimumSize = new Size(0, 36), FlatStyle = FlatStyle.Flat, BackColor = Accent, ForeColor = Color.White, Padding = new Padding(14, 7, 14, 7), Cursor = Cursors.Hand, Font = new Font("Segoe UI Semibold", 9.5f), Margin = new Padding(0, 0, 8, 8) };
-        b.FlatAppearance.BorderSize = 0; b.FlatAppearance.MouseOverBackColor = Color.FromArgb(135, 141, 255);
+        b.FlatAppearance.BorderSize = 0; b.FlatAppearance.MouseOverBackColor = Color.FromArgb(169, 153, 255);
         b.Click += click; return b;
     }
     private static Button SecondaryButton(string text, EventHandler click)
     {
         var b = Button(text, click); b.BackColor = InputSurface; b.ForeColor = Color.FromArgb(226, 231, 241);
-        b.FlatAppearance.MouseOverBackColor = Color.FromArgb(47, 57, 79); return b;
+        b.FlatAppearance.MouseOverBackColor = UiTheme.Hover; return b;
     }
     private Panel MakeShortcuts()
     {
@@ -526,10 +528,10 @@ internal sealed class ChatForm : Form
             var bodyHeight = TextRenderer.MeasureText(m.Content, Font, new Size(bodyWidth, 10000), TextFormatFlags.WordBreak).Height + 7;
             var bubbleHeight = Math.Max(76, Math.Min(1000, bodyHeight + 52));
             var row = new Panel { Width = rowWidth, Height = bubbleHeight + 11, BackColor = Canvas, Margin = new Padding(0, 0, 0, 2) };
-            var bubble = new SurfaceCard { Width = bubbleWidth, Height = bubbleHeight, Padding = new Padding(16, 12, 16, 12), BackColor = user ? Color.FromArgb(36, 43, 77) : Surface,
+            var bubble = new SurfaceCard { Width = bubbleWidth, Height = bubbleHeight, Padding = new Padding(16, 12, 16, 12), BackColor = user ? UiTheme.Selected : Surface,
                 Location = new Point(user ? rowWidth - bubbleWidth - 4 : 4, 3) };
             bubble.Controls.Add(new Label { Text = m.Content, Dock = DockStyle.Fill, ForeColor = Color.FromArgb(234, 238, 247), Font = new Font("Segoe UI", 10.5f), TextAlign = ContentAlignment.TopLeft });
-            bubble.Controls.Add(new Label { Text = $"{(user ? "YOU" : "TOKI")}  ·  {m.At:g}", Dock = DockStyle.Top, Height = 30, ForeColor = user ? Color.FromArgb(177, 185, 255) : Color.FromArgb(112, 220, 196), Font = new Font("Segoe UI Semibold", 9) });
+            bubble.Controls.Add(new Label { Text = $"{(user ? "YOU" : "TOKI")}  ·  {m.At:g}", Dock = DockStyle.Top, Height = 30, ForeColor = user ? Color.FromArgb(190, 178, 255) : Color.FromArgb(112, 220, 196), Font = new Font("Segoe UI Semibold", 9) });
             var copyMenu = new ContextMenuStrip(); copyMenu.Items.Add("Copy message", null, (_, _) => Clipboard.SetText(m.Content));
             bubble.ContextMenuStrip = copyMenu;
             foreach (Control child in bubble.Controls) child.ContextMenuStrip = copyMenu;
@@ -920,7 +922,7 @@ internal sealed class ChatForm : Form
         }));
         usageStatus.Font = new Font("Segoe UI Semibold", 11); usageStatus.ForeColor = Color.White;
         panel.Controls.Add(usageStatus);
-        var link = new LinkLabel { Text = "Open ChatGPT settings ↗", AutoSize = true, LinkColor = Color.FromArgb(147, 170, 255) };
+        var link = new LinkLabel { Text = "Open ChatGPT settings ↗", AutoSize = true, LinkColor = UiTheme.Accent };
         link.Click += (_, _) => Process.Start(new ProcessStartInfo("https://chatgpt.com/settings/usage") { UseShellExecute = true });
         panel.Controls.Add(link);
         card.Controls.Add(panel); gallery.Controls.Add(card);
@@ -951,11 +953,24 @@ internal sealed class ChatForm : Form
             card.Controls.Add(content); panel.Controls.Add(card); cards.Add(card); return content;
         }
         var launcherSection = Section("One-touch access", 390);
+        var appearanceSection = Section("Appearance", 180);
         var shortcutSection = Section("App shortcuts", 480);
         var generalSection = Section("General & voice", 450);
         var aiSection = Section("Offline chatbot", 300);
         var emailSection = Section("Email connections", 260);
         var privacySection = Section("Privacy & data", 230);
+        appearanceSection.Controls.Add(new Label { Text = "Window opacity", AutoSize = true });
+        var opacityValue = new Label { Width = 610, Height = 28, ForeColor = Muted };
+        var opacity = new TrackBar { Minimum = 55, Maximum = 100, TickFrequency = 5, SmallChange = 5, LargeChange = 10,
+            Width = 360, Height = 46, Value = Math.Clamp(app.Data.WindowOpacity, 55, 100), AccessibleName = "Window opacity percentage" };
+        void UpdateOpacity()
+        {
+            opacityValue.Text = $"{opacity.Value}%  ·  Lower values show more of your desktop behind TOKI.";
+            app.Data.WindowOpacity = opacity.Value; app.Save(); app.ApplyAppearance();
+        }
+        opacity.ValueChanged += (_, _) => UpdateOpacity();
+        opacityValue.Text = $"{opacity.Value}%  ·  Lower values show more of your desktop behind TOKI.";
+        appearanceSection.Controls.Add(opacityValue); appearanceSection.Controls.Add(opacity);
         launcherSection.Controls.Add(new Label { Text = "Choose what opens when you click the floating robot or press your TOKI hotkey.", Width = 610, Height = 42, ForeColor = Muted });
         launcherSection.Controls.Add(new Label { Text = "Floating click opens", AutoSize = true });
         var primary = new TokiComboBox { Width = 390, DropDownStyle = ComboBoxStyle.DropDownList, AccessibleName = "Floating click opens" };
@@ -1126,8 +1141,8 @@ internal sealed class AccountAvatar : Control
 
 internal sealed class DarkDateTimeInput : UserControl
 {
-    private static readonly Color Field = Color.FromArgb(32, 40, 57);
-    private static readonly Color Muted = Color.FromArgb(154, 168, 190);
+    private static readonly Color Field = UiTheme.Field;
+    private static readonly Color Muted = UiTheme.Muted;
     private readonly TextBox text = new() { BorderStyle = BorderStyle.None, BackColor = Field, ForeColor = Color.White, Font = new Font("Segoe UI", 9.5f) };
     private DateTime selected = DateTime.Now.AddHours(1);
 
@@ -1147,7 +1162,7 @@ internal sealed class DarkDateTimeInput : UserControl
         var picker = new TokiButton { Dock = DockStyle.Right, Width = 34, Text = "▾", FlatStyle = FlatStyle.Flat, BackColor = Field,
             ForeColor = Muted, Cursor = Cursors.Hand, AccessibleName = "Choose date and time" };
         picker.FlatAppearance.BorderSize = 0;
-        picker.FlatAppearance.MouseOverBackColor = Color.FromArgb(48, 57, 79);
+        picker.FlatAppearance.MouseOverBackColor = UiTheme.Hover;
         picker.Click += (_, _) => OpenCalendar();
         text.Dock = DockStyle.Fill;
         text.Margin = Padding.Empty;
@@ -1180,7 +1195,7 @@ internal sealed class DarkDateTimeInput : UserControl
         var month = new DateTime(current.Year, current.Month, 1);
         using var popup = new Form { Text = "Choose date and time", FormBorderStyle = FormBorderStyle.FixedDialog, StartPosition = FormStartPosition.Manual,
             ClientSize = new Size(308, 370), MaximizeBox = false, MinimizeBox = false, ShowInTaskbar = false,
-            BackColor = Color.FromArgb(22, 28, 42), ForeColor = Color.White, Font = new Font("Segoe UI", 9.5f) };
+            BackColor = UiTheme.Panel, ForeColor = Color.White, Font = new Font("Segoe UI", 9.5f) };
         popup.HandleCreated += (_, _) => UiTheme.DarkWindow(popup);
         var area = Screen.FromControl(this).WorkingArea;
         var screen = PointToScreen(new Point(0, Height));
@@ -1203,10 +1218,10 @@ internal sealed class DarkDateTimeInput : UserControl
                 var date = new DateTime(month.Year, month.Month, day);
                 var active = date.Date == current.Date;
                 var button = new TokiButton { Text = day.ToString(), Dock = DockStyle.Fill, Margin = new Padding(1), FlatStyle = FlatStyle.Flat,
-                    BackColor = active ? Color.FromArgb(113, 119, 255) : Color.FromArgb(32, 40, 57), ForeColor = Color.White,
+                    BackColor = active ? UiTheme.Accent : UiTheme.Field, ForeColor = Color.White,
                     Cursor = Cursors.Hand, AccessibleName = date.ToString("D") };
                 button.FlatAppearance.BorderSize = 0;
-                button.FlatAppearance.MouseOverBackColor = Color.FromArgb(53, 62, 96);
+                button.FlatAppearance.MouseOverBackColor = UiTheme.Hover;
                 button.Click += (_, _) => { current = date.Add(current.TimeOfDay); RenderMonth(); };
                 days.Controls.Add(button, (offset + day - 1) % 7, 1 + (offset + day - 1) / 7);
             }
@@ -1216,16 +1231,16 @@ internal sealed class DarkDateTimeInput : UserControl
             var button = new TokiButton { Text = caption, Bounds = new Rectangle(x, 12, 34, 30), FlatStyle = FlatStyle.Flat,
                 BackColor = Field, ForeColor = Color.White, Cursor = Cursors.Hand };
             button.FlatAppearance.BorderSize = 0;
-            button.FlatAppearance.MouseOverBackColor = Color.FromArgb(53, 62, 96);
+            button.FlatAppearance.MouseOverBackColor = UiTheme.Hover;
             button.Click += (_, _) => { month = month.AddMonths(direction); RenderMonth(); };
             return button;
         }
         var time = new TokiTextBox { Location = new Point(68, 299), Size = new Size(130, 36), Text = current.ToString("h:mm tt"),
             BackColor = Field, ForeColor = Color.White, PlaceholderText = "Time, e.g. 9:30 AM" };
         var apply = new TokiButton { Text = "Apply", Bounds = new Rectangle(207, 299, 89, 36), FlatStyle = FlatStyle.Flat,
-            BackColor = Color.FromArgb(113, 119, 255), ForeColor = Color.White, Cursor = Cursors.Hand };
+            BackColor = UiTheme.Accent, ForeColor = Color.White, Cursor = Cursors.Hand };
         apply.FlatAppearance.BorderSize = 0;
-        apply.FlatAppearance.MouseOverBackColor = Color.FromArgb(135, 141, 255);
+        apply.FlatAppearance.MouseOverBackColor = Color.FromArgb(169, 153, 255);
         popup.AcceptButton = apply;
         popup.KeyPreview = true;
         popup.KeyDown += (_, e) => { if (e.KeyCode == Keys.Escape) popup.DialogResult = DialogResult.Cancel; };
@@ -1248,7 +1263,7 @@ internal sealed class SurfaceCard : Panel
 {
     public SurfaceCard()
     {
-        BackColor = Color.FromArgb(22, 28, 42);
+        BackColor = UiTheme.Panel;
         DoubleBuffered = true;
     }
     private static GraphicsPath Outline(Rectangle bounds, int radius)
@@ -1277,7 +1292,7 @@ internal sealed class SurfaceCard : Panel
         if (Width < 24 || Height < 24) return;
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         using var outline = Outline(new Rectangle(0, 0, Width - 1, Height - 1), 14);
-        using var border = new Pen(Color.FromArgb(58, 68, 93));
+        using var border = new Pen(UiTheme.Border);
         e.Graphics.DrawPath(border, outline);
     }
 }

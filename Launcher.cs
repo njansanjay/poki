@@ -145,7 +145,7 @@ internal sealed class ShortcutTile : Button
         AccessibleDescription = "Open " + shortcut.Name;
         Size = new Size(64, 64); Margin = new Padding(6);
         FlatStyle = FlatStyle.Flat; FlatAppearance.BorderSize = 0;
-        BackColor = Color.FromArgb(29, 37, 55); Cursor = Cursors.Hand;
+        BackColor = UiTheme.Field; Cursor = Cursors.Hand;
         SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint, true);
     }
     protected override async void OnHandleCreated(EventArgs e)
@@ -174,9 +174,9 @@ internal sealed class ShortcutTile : Button
         const int d = 20;
         outline.AddArc(1, 1, d, d, 180, 90); outline.AddArc(Width - d - 2, 1, d, d, 270, 90);
         outline.AddArc(Width - d - 2, Height - d - 2, d, d, 0, 90); outline.AddArc(1, Height - d - 2, d, d, 90, 90); outline.CloseFigure();
-        using var fill = new SolidBrush(hovered || Focused ? Color.FromArgb(48, 60, 88) : BackColor);
+        using var fill = new SolidBrush(hovered || Focused ? UiTheme.Hover : BackColor);
         e.Graphics.FillPath(fill, outline);
-        if (Focused) { using var border = new Pen(Color.FromArgb(132, 159, 255), 2); e.Graphics.DrawPath(border, outline); }
+        if (Focused) { using var border = new Pen(UiTheme.Accent, 2); e.Graphics.DrawPath(border, outline); }
         if (appIcon != null)
         {
             e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
@@ -200,7 +200,7 @@ internal sealed class ShortcutGrid : UserControl
     public event Action<AppShortcut>? ShortcutClicked;
     public ShortcutGrid()
     {
-        BackColor = Color.FromArgb(13, 17, 27); icons.BackColor = BackColor;
+        BackColor = UiTheme.Canvas; icons.BackColor = BackColor;
         Controls.Add(icons); Controls.Add(empty);
     }
     public void SetShortcuts(IEnumerable<AppShortcut> shortcuts)
@@ -237,11 +237,11 @@ internal sealed class LauncherActionButton : Button
     protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
     protected override void OnPaint(PaintEventArgs e)
     {
-        e.Graphics.Clear(Parent?.BackColor ?? Color.FromArgb(13, 17, 27));
+        e.Graphics.Clear(Parent?.BackColor ?? UiTheme.Canvas);
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         if (hovered || (Focused && ShowFocusCues))
         {
-            using var background = new SolidBrush(Color.FromArgb(40, 50, 73));
+            using var background = new SolidBrush(UiTheme.Hover);
             e.Graphics.FillEllipse(background, 2, 2, Width - 4, Height - 4);
         }
         using var pen = new Pen(Color.FromArgb(231, 237, 249), 2) { StartCap = LineCap.Round, EndCap = LineCap.Round };
@@ -270,7 +270,8 @@ internal sealed class ShortcutLauncherForm : Form
         Text = "TOKI · Shortcuts"; Icon = BrandAssets.CreateIcon();
         FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; StartPosition = FormStartPosition.Manual;
         AutoScaleMode = AutoScaleMode.None;
-        BackColor = Color.FromArgb(13, 17, 27); ForeColor = Color.White; Font = new Font("Segoe UI", 10);
+        BackColor = UiTheme.Canvas; ForeColor = Color.White; Font = new Font("Segoe UI", 10);
+        ApplyOpacity();
         Padding = new Padding(14); KeyPreview = true; DoubleBuffered = true;
         var header = new Panel { Dock = DockStyle.Top, Height = 60 };
         header.Controls.Add(new BrandWordmark { Dock = DockStyle.Left, Width = 135 });
@@ -312,6 +313,7 @@ internal sealed class ShortcutLauncherForm : Form
         Location = PrimaryViews.PopupLocation(anchor, Size, area);
         TopMost = app.Data.TopMost; Show(); Activate();
     }
+    internal void ApplyOpacity() => Opacity = Math.Clamp(app.Data.WindowOpacity, 55, 100) / 100.0;
     public void RefreshShortcuts()
     {
         grid.SetShortcuts(app.Data.AppShortcuts);
@@ -337,7 +339,7 @@ internal sealed class ShortcutLauncherForm : Form
     {
         base.OnPaint(e);
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using var border = new Pen(Color.FromArgb(64, 79, 110));
+        using var border = new Pen(UiTheme.Border);
         using var outline = RoundedOutline(); e.Graphics.DrawPath(border, outline);
     }
     protected override void Dispose(bool disposing) { if (disposing) tips.Dispose(); base.Dispose(disposing); }
