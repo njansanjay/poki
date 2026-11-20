@@ -99,8 +99,14 @@ internal sealed class TokiApp : ApplicationContext
     }
     internal void ShowLauncher()
     {
-        if (launcher is null || launcher.IsDisposed) launcher = new ShortcutLauncherForm(this);
-        launcher.ShowNear(orb.Bounds);
+        if (launcher is null || launcher.IsDisposed)
+        {
+            launcher = new ShortcutLauncherForm(this);
+            launcher.VisibleChanged += (_, _) => { if (!launcher.Visible && !orb.IsDisposed) orb.RestoreCat(); };
+        }
+        var anchor = orb.Bounds;
+        orb.Hide();
+        launcher.ShowNear(anchor);
     }
     internal void OpenShortcutSettings() { Open(4); chat?.FocusShortcutSettings(); }
     internal void RefreshShortcuts() { chat?.RefreshShortcutGallery(); launcher?.RefreshShortcuts(); }
@@ -161,11 +167,10 @@ internal sealed class OrbForm : Form
     private Point windowOrigin;
     private bool moved;
     private bool pointerDown;
-    private Point restingLocation;
-    private double floatPhase;
+    private readonly CatMotion motion = new();
     private readonly Stopwatch floatClock = Stopwatch.StartNew();
     private readonly System.Windows.Forms.Timer floatTimer = new() { Interval = 16 };
-    private readonly LayeredRobot robotRenderer = new();
+    private readonly LayeredCat catRenderer = new();
     public OrbForm(TokiApp app)
     {
         this.app = app;
@@ -174,49 +179,52 @@ internal sealed class OrbForm : Form
         StartPosition = FormStartPosition.Manual;
         ShowInTaskbar = false;
         TopMost = app.Data.TopMost;
-        Text = "TOKI floating robot";
-        AccessibleName = "TOKI floating robot";
+        Text = "TOKI desktop cat";
+        AccessibleName = "TOKI cat — click for app shortcuts";
         Icon = BrandAssets.CreateIcon(); Cursor = Cursors.Hand;
         var size = Math.Clamp(app.Data.OrbSize, 40, 192);
         MinimumSize = new Size(size, size); MaximumSize = MinimumSize;
         Size = new Size(size, size);
         Location = new Point(app.Data.OrbX, app.Data.OrbY);
-        restingLocation = Location;
+        motion.Place(Left);
         var menu = new ContextMenuStrip();
-        menu.Items.Add("One-touch view", null, (_, _) => app.TogglePrimary());
+        menu.Items.Add("App shortcuts", null, (_, _) => app.ShowLauncher());
         menu.Items.Add("Open full TOKI", null, (_, _) => app.Open(5));
         menu.Items.Add("Settings", null, (_, _) => app.Open(4));
         menu.Items.Add("Exit", null, (_, _) => app.Exit());
         ContextMenuStrip = menu;
         MouseDown += (_, e) => { if (e.Button == MouseButtons.Left) { pointerDown = true; dragOrigin = Cursor.Position; windowOrigin = Location; moved = false; } };
         MouseMove += (_, e) => { if (e.Button == MouseButtons.Left) { var delta = new Size(Cursor.Position.X - dragOrigin.X, Cursor.Position.Y - dragOrigin.Y); if (Math.Abs(delta.Width) + Math.Abs(delta.Height) > 4) moved = true; if (moved) Location = windowOrigin + delta; } };
-        MouseUp += (_, e) => { if (e.Button == MouseButtons.Left) { pointerDown = false; if (moved) { ClampToScreen(); restingLocation = Location; floatPhase = 0; app.Data.OrbX = Left; app.Data.OrbY = Top; app.Save(); } else app.TogglePrimary(); } };
+        MouseUp += (_, e) => { if (e.Button == MouseButtons.Left) { pointerDown = false; if (moved) { ClampToScreen(); motion.Place(Left); app.Data.OrbX = Left; app.Data.OrbY = Top; app.Save(); } else app.ShowLauncher(); } };
         MouseCaptureChanged += (_, _) => { if (Control.MouseButtons == MouseButtons.None) pointerDown = false; };
         floatTimer.Tick += (_, _) => AnimateFloat();
     }
     protected override CreateParams CreateParams { get { var parameters = base.CreateParams; parameters.ExStyle |= 0x00080000; return parameters; } }
-    protected override void OnShown(EventArgs e) { base.OnShown(e); ClampToScreen(); restingLocation = Location; robotRenderer.Render(this); floatClock.Restart(); floatTimer.Start(); }
+    protected override void OnShown(EventArgs e) { base.OnShown(e); ClampToScreen(); motion.Place(Left); catRenderer.Render(this); floatClock.Restart(); floatTimer.Start(); }
+    internal void RestoreCat() { ClampToScreen(); motion.Place(Left); Show(); catRenderer.Render(this); }
     private void AnimateFloat()
     {
         var elapsed = Math.Min(floatClock.Elapsed.TotalSeconds, 0.1); floatClock.Restart();
-        // Pause under the pointer so a moving target never gets in the way of a click or drag.
-        if (!app.Data.FloatAnimation || !SystemInformation.UIEffectsEnabled || pointerDown || Bounds.Contains(Cursor.Position) || ContextMenuStrip?.Visible == true) return;
-        floatPhase = (floatPhase + elapsed * Math.PI * 2 / 3.8) % (Math.PI * 2);
-        robotRenderer.Render(this, LayeredRobot.FloatOffset(floatPhase));
+        if (!Visible || pointerDown) return;
+        var area = Screen.FromRectangle(Bounds).WorkingArea;
+        motion.Advance(elapsed, area, Width, app.Data.FloatAnimation && SystemInformation.UIEffectsEnabled,
+            Bounds.Contains(Cursor.Position) || ContextMenuStrip?.Visible == true);
+        Location = CatMotion.GroundLocation(area, Width, motion.X);
+        catRenderer.Render(this, motion.Frame, motion.FacingLeft);
     }
     private void ClampToScreen()
     {
         var area = Screen.FromRectangle(Bounds).WorkingArea;
-        Location = new Point(Math.Clamp(Left, area.Left, Math.Max(area.Left, area.Right - Width)), Math.Clamp(Top, area.Top, Math.Max(area.Top, area.Bottom - Height)));
+        Location = CatMotion.GroundLocation(area, Width, Left);
     }
     public void ApplyAppearance()
     {
         TopMost = app.Data.TopMost;
         var size = Math.Clamp(app.Data.OrbSize, 40, 192);
         MaximumSize = Size.Empty; MinimumSize = new Size(size, size); MaximumSize = MinimumSize; Size = MinimumSize;
-        Location = restingLocation; ClampToScreen(); restingLocation = Location; floatPhase = 0;
-        robotRenderer.Dispose();
-        if (IsHandleCreated) robotRenderer.Render(this);
+        ClampToScreen(); motion.Place(Left);
+        catRenderer.Dispose();
+        if (IsHandleCreated) catRenderer.Render(this);
     }
     protected override void OnHandleCreated(EventArgs e)
     {
@@ -255,11 +263,11 @@ internal sealed class OrbForm : Form
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
-        // The robot is rendered with per-pixel transparency by LayeredRobot.
+        // The desktop pet is rendered with per-pixel transparency by LayeredCat.
     }
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { floatTimer.Stop(); floatTimer.Dispose(); robotRenderer.Dispose(); }
+        if (disposing) { floatTimer.Stop(); floatTimer.Dispose(); catRenderer.Dispose(); }
         base.Dispose(disposing);
     }
 }
@@ -971,23 +979,23 @@ internal sealed class ChatForm : Form
         opacity.ValueChanged += (_, _) => UpdateOpacity();
         opacityValue.Text = $"{opacity.Value}%  ·  Lower values show more of your desktop behind TOKI.";
         appearanceSection.Controls.Add(opacityValue); appearanceSection.Controls.Add(opacity);
-        launcherSection.Controls.Add(new Label { Text = "Choose what opens when you click the floating robot or press your TOKI hotkey.", Width = 610, Height = 42, ForeColor = Muted });
-        launcherSection.Controls.Add(new Label { Text = "Floating click opens", AutoSize = true });
-        var primary = new TokiComboBox { Width = 390, DropDownStyle = ComboBoxStyle.DropDownList, AccessibleName = "Floating click opens" };
+        launcherSection.Controls.Add(new Label { Text = "Your cat walks along the taskbar. Click it for app shortcuts, or drag it to another screen.", Width = 610, Height = 42, ForeColor = Muted });
+        launcherSection.Controls.Add(new Label { Text = "Keyboard shortcut opens", AutoSize = true });
+        var primary = new TokiComboBox { Width = 390, DropDownStyle = ComboBoxStyle.DropDownList, AccessibleName = "Keyboard shortcut opens" };
         primary.Items.AddRange(PrimaryViews.Names);
         primary.SelectedItem = PrimaryViews.Names.Contains(app.Data.PrimaryView) ? app.Data.PrimaryView : "Shortcuts";
         var primaryStatus = new Label { Text = "Shortcuts opens the compact icon launcher. ☰ opens the full TOKI app.", Width = 610, Height = 38, ForeColor = Muted };
         primary.SelectedIndexChanged += (_, _) =>
         {
             app.Data.PrimaryView = primary.Text; app.Save();
-            primaryStatus.Text = "Saved. The floating robot now opens " + primary.Text + ".";
+            primaryStatus.Text = "Saved. Your keyboard shortcut now opens " + primary.Text + ".";
         };
         launcherSection.Controls.Add(primary); launcherSection.Controls.Add(primaryStatus);
-        var floatAnimation = new CheckBox { Text = "Gentle floating animation", Checked = app.Data.FloatAnimation, AutoSize = true };
+        var floatAnimation = new CheckBox { Text = "Let the cat walk, blink and play", Checked = app.Data.FloatAnimation, AutoSize = true };
         floatAnimation.CheckedChanged += (_, _) => { app.Data.FloatAnimation = floatAnimation.Checked; app.Save(); app.ApplyAppearance(); };
         launcherSection.Controls.Add(floatAnimation);
-        launcherSection.Controls.Add(new Label { Text = "Robot size (40–192 pixels, applies immediately)", AutoSize = true });
-        var size = new NumericUpDown { Minimum = 40, Maximum = 192, Increment = 4, Value = Math.Clamp(app.Data.OrbSize, 40, 192), Width = 140, AccessibleName = "Floating robot size in pixels" };
+        launcherSection.Controls.Add(new Label { Text = "Cat size (40–192 pixels, applies immediately)", AutoSize = true });
+        var size = new NumericUpDown { Minimum = 40, Maximum = 192, Increment = 4, Value = Math.Clamp(app.Data.OrbSize, 40, 192), Width = 140, AccessibleName = "Desktop cat size in pixels" };
         size.ValueChanged += (_, _) => { app.Data.OrbSize = (int)size.Value; app.Save(); app.ApplyAppearance(); };
         launcherSection.Controls.Add(size);
         launcherSection.Controls.Add(SecondaryButton("Preview one-touch view", (_, _) => app.TogglePrimary()));

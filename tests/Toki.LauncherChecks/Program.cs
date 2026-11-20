@@ -73,6 +73,27 @@ internal static class Program
             Check(robot.GetPixel(robot.Width / 2, robot.Height / 2).B > 150, "Robot PNG contains the blue logo");
         }
         using (var icon = BrandAssets.CreateIcon()) Check(icon.Width > 0, "Embedded Windows icon loads");
+        for (var i = 0; i < 8; i++)
+        {
+            var cell = CatSprites.Cell(i);
+            Check(cell.Width > 0 && new Rectangle(Point.Empty, CatSprites.Sheet.Size).Contains(cell), "Cat sprite frame is inside atlas: " + i);
+        }
+        var cat = new CatMotion(); cat.Place(230);
+        var catArea = new Rectangle(-400, -100, 800, 600);
+        var leftSeen = false; var rightSeen = false;
+        for (var i = 0; i < 12000; i++)
+        {
+            cat.Advance(0.05, catArea, 96, true, false);
+            if (cat.FacingLeft) leftSeen = true; else rightSeen = true;
+            if (!catArea.Contains(new Rectangle(CatMotion.GroundLocation(catArea, 96, cat.X), new Size(96, 96))))
+                throw new Exception("Cat escaped the working area");
+        }
+        Check(leftSeen && rightSeen, "Cat walks both ways and remains above the taskbar");
+        var pausedX = cat.X;
+        cat.Advance(0.1, catArea, 96, true, true);
+        Check(cat.X == pausedX && cat.Frame == 4, "Cat stops under the pointer for easy clicking");
+        cat.Advance(0.1, catArea, 96, false, false);
+        Check(cat.X == pausedX && cat.Frame == 4, "Disabling motion leaves a seated cat");
         Check(Math.Abs(LayeredRobot.FloatOffset(Math.PI / 2) - 3) < 0.001, "Floating motion stays within three pixels");
         Check(LayeredRobot.FloatOffset(0.1) > 0 && LayeredRobot.FloatOffset(0.1) < 1, "Floating motion retains fractional-pixel positions");
         using (var menuButton = new LauncherActionButton(true))

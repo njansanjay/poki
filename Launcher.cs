@@ -18,10 +18,9 @@ internal static class PrimaryViews
     };
     public static Point PopupLocation(Rectangle anchor, Size popup, Rectangle workArea)
     {
-        var x = anchor.Right + 10;
-        if (x + popup.Width > workArea.Right) x = anchor.Left - popup.Width - 10;
+        var x = anchor.Left + (anchor.Width - popup.Width) / 2;
         return new Point(Math.Clamp(x, workArea.Left, Math.Max(workArea.Left, workArea.Right - popup.Width)),
-            Math.Clamp(anchor.Top, workArea.Top, Math.Max(workArea.Top, workArea.Bottom - popup.Height)));
+            Math.Clamp(anchor.Top - popup.Height - 6, workArea.Top, Math.Max(workArea.Top, workArea.Bottom - popup.Height)));
     }
 }
 
@@ -67,7 +66,7 @@ internal sealed class BrandWordmark : Control
         e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
         var bounds = BrandAssets.FitRobot(new Size(size, size));
         bounds.Offset(0, (Height - size) / 2);
-        e.Graphics.DrawImage(BrandAssets.Robot, bounds);
+        CatSprites.Draw(e.Graphics, new Rectangle(0, (Height - size) / 2, size, size));
         TextRenderer.DrawText(e.Graphics, "toki", Font, new Rectangle(size + 4, 0, Math.Max(0, Width - size - 4), Height), ForeColor,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
     }
