@@ -117,20 +117,18 @@ internal static class ShortcutService
     // Shell icon discovery can touch disk or resolve a shortcut. Cache one source bitmap per path,
     // then give each tile its own clone so rebuilding the launcher never flashes a fallback icon.
     private static Task<Bitmap> CachedIconAsync(string path) => iconCache.GetOrAdd(path,
-        key => new Lazy<Task<Bitmap>>(() => LoadIconWithTimeoutAsync(key), LazyThreadSafetyMode.ExecutionAndPublication)).Value;
+        key => new Lazy<Task<Bitmap>>(() => LoadIconCoreAsync(key), LazyThreadSafetyMode.ExecutionAndPublication)).Value;
     public static async Task<Bitmap> LoadIconAsync(string path) => new(await CachedIconAsync(path).ConfigureAwait(false));
     public static void Prewarm(IEnumerable<AppShortcut> shortcuts)
     {
         foreach (var shortcut in shortcuts) _ = CachedIconAsync(shortcut.Path);
     }
-    public static Task PreloadAsync(IEnumerable<AppShortcut> shortcuts) =>
-        Task.WhenAll(shortcuts.Select(shortcut => CachedIconAsync(shortcut.Path)));
-    private static async Task<Bitmap> LoadIconWithTimeoutAsync(string path)
+    public static async Task PreloadAsync(IEnumerable<AppShortcut> shortcuts)
     {
-        var load = LoadIconCoreAsync(path);
-        if (await Task.WhenAny(load, Task.Delay(2000)).ConfigureAwait(false) == load) return await load.ConfigureAwait(false);
-        _ = load.ContinueWith(completed => completed.Result.Dispose(), TaskContinuationOptions.OnlyOnRanToCompletion);
-        return SystemIcons.Application.ToBitmap();
+        // Do not cache a generic fallback when Windows shell lookup is slow. The tiles
+        // keep awaiting the same real lookup and repaint with the resolved icon later.
+        var preload = Task.WhenAll(shortcuts.Select(shortcut => CachedIconAsync(shortcut.Path)));
+        await Task.WhenAny(preload, Task.Delay(2000)).ConfigureAwait(false);
     }
     private static Task<Bitmap> LoadIconCoreAsync(string path) => Task.Run(() =>
     {
