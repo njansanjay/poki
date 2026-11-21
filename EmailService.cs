@@ -6,13 +6,13 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-namespace Toki;
+namespace Poki;
 
 internal sealed class EmailService
 {
-    private readonly TokiApp app;
+    private readonly PokiApp app;
     private readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(40) };
-    public EmailService(TokiApp app) => this.app = app;
+    public EmailService(PokiApp app) => this.app = app;
     private static string Enc(string text) => Uri.EscapeDataString(text);
     private static string Url64(byte[] bytes) => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
@@ -36,7 +36,7 @@ internal sealed class EmailService
         var scopes = google ? "openid email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send" : "openid email offline_access User.Read Mail.Read Mail.Send";
         var url = $"{authBase}?client_id={Enc(clientId)}&redirect_uri={Enc(redirect)}&response_type=code&scope={Enc(scopes)}&state={Enc(state)}&code_challenge={Enc(challenge)}&code_challenge_method=S256" + (google ? "&access_type=offline&prompt=select_account%20consent" : "&prompt=select_account");
         using var listener = new HttpListener(); listener.Prefixes.Add(redirect); listener.Start();
-        progress?.Report($"Browser opened. Finish {provider} sign-in and wait for the TOKI confirmation page.");
+        progress?.Report($"Browser opened. Finish {provider} sign-in and wait for the POKI confirmation page.");
         Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromMinutes(3));
@@ -44,8 +44,8 @@ internal sealed class EmailService
         var query = context.Request.QueryString;
         var callbackError = query["error"];
         var html = string.IsNullOrEmpty(callbackError)
-            ? "<html><body style='font-family:sans-serif'>TOKI received your sign-in. You can return to the app.</body></html>"
-            : "<html><body style='font-family:sans-serif'>TOKI sign-in was not completed. Return to the app for details.</body></html>";
+            ? "<html><body style='font-family:sans-serif'>POKI received your sign-in. You can return to the app.</body></html>"
+            : "<html><body style='font-family:sans-serif'>POKI sign-in was not completed. Return to the app for details.</body></html>";
         var bytes = Encoding.UTF8.GetBytes(html);
         context.Response.ContentType = "text/html"; context.Response.ContentLength64 = bytes.Length;
         await context.Response.OutputStream.WriteAsync(bytes); context.Response.Close();

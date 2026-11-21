@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Runtime.InteropServices;
-using Toki;
+using Poki;
 
 internal static class Program
 {
@@ -19,8 +19,8 @@ internal static class Program
     private static void Main(string[] args)
     {
         if (args.Contains("--render-ui")) { RenderUi(); return; }
-        // No account access, app launches, network calls or writes to the user's TOKI data.
-        using (var field = new TokiTextBox { Size = new Size(320, 44), Text = "Draft", PlaceholderText = "Message" })
+        // No account access, app launches, network calls or writes to the user's POKI data.
+        using (var field = new PokiTextBox { Size = new Size(320, 44), Text = "Draft", PlaceholderText = "Message" })
         {
             var editor = field.Controls.OfType<TextBox>().Single();
             field.PerformLayout();
@@ -37,7 +37,7 @@ internal static class Program
             field.Clear();
             Check(editor.TextLength == 0 && field.TextLength == 0, "Clearing the composer clears the native editor");
         }
-        using (var choice = new TokiComboBox())
+        using (var choice = new PokiComboBox())
         {
             choice.Items.AddRange(new object[] { "None", "Daily", "Weekly" }); choice.SelectedIndex = 1;
             Check(choice.Text == "Daily" && choice.DrawMode == DrawMode.OwnerDrawFixed,
@@ -48,7 +48,7 @@ internal static class Program
             var due = new DateTime(2027, 3, 17, 15, 45, 0); date.Value = due;
             Check(date.Value == due, "Dark date field preserves the selected date and time");
         }
-        using (var number = new TokiNumber { Minimum = 40, Maximum = 192, Value = 96 })
+        using (var number = new PokiNumber { Minimum = 40, Maximum = 192, Value = 96 })
         {
             number.Value = 500; Check(number.Value == 192, "Cat size control caps large values");
             number.Value = -1; Check(number.Value == 40, "Cat size control caps small values");
@@ -78,6 +78,12 @@ internal static class Program
         {
             Check(robot.GetPixel(0, 0).A == 0 && robot.GetPixel(robot.Width - 1, robot.Height - 1).A == 0, "Robot PNG has transparent corners");
             Check(robot.GetPixel(robot.Width / 2, robot.Height / 2).B > 150, "Robot PNG contains the blue logo");
+        }
+        using (var mark = new Bitmap(BrandAssets.CatMark))
+        {
+            Check(mark.GetPixel(0, 0).A == 0 && mark.GetPixel(mark.Width - 1, mark.Height - 1).A == 0, "Cat mark has transparent corners");
+            var center = mark.GetPixel(mark.Width / 2, mark.Height / 2);
+            Check(center.R > center.B, "Cat mark contains the warm orange identity");
         }
         using (var icon = BrandAssets.CreateIcon()) Check(icon.Width > 0, "Embedded Windows icon loads");
         for (var i = 0; i < 8; i++)
@@ -133,7 +139,7 @@ internal static class Program
                 "Robot keeps its proportions on canvas " + canvas);
             Check(new Rectangle(Point.Empty, canvas).Contains(fit), "Robot fits inside canvas " + canvas);
         }
-        var testDirectory = Path.Combine(Path.GetTempPath(), "TokiLauncherChecks-" + Guid.NewGuid().ToString("N"));
+        var testDirectory = Path.Combine(Path.GetTempPath(), "PokiLauncherChecks-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(testDirectory);
         try
         {
@@ -142,15 +148,18 @@ internal static class Program
             var script = Path.Combine(testDirectory, "script.cmd"); File.WriteAllText(script, "never executed");
             try { ShortcutService.ValidatePath(script); throw new Exception("Script accepted"); } catch (ArgumentException) { checks++; }
             try { ShortcutService.ValidatePath(Path.Combine(testDirectory, "missing.exe")); throw new Exception("Missing file accepted"); } catch (FileNotFoundException) { checks++; }
+            ShortcutService.PreloadAsync(new[] { new AppShortcut { Name = "POKI", Path = Environment.ProcessPath! } }).GetAwaiter().GetResult();
             using var applicationIcon = ShortcutService.LoadIconAsync(Environment.ProcessPath!).GetAwaiter().GetResult();
+            using var cachedIconClone = ShortcutService.LoadIconAsync(Environment.ProcessPath!).GetAwaiter().GetResult();
             Check(applicationIcon.Width > 0, "Windows executable icon resolves asynchronously");
+            Check(!ReferenceEquals(applicationIcon, cachedIconClone) && applicationIcon.Size == cachedIconClone.Size, "Shortcut cache returns independent ready-to-paint icon copies");
             var shellType = Type.GetTypeFromProgID("WScript.Shell")!;
             dynamic shell = Activator.CreateInstance(shellType)!;
-            dynamic link = shell.CreateShortcut(Path.Combine(testDirectory, "Toki.lnk"));
+            dynamic link = shell.CreateShortcut(Path.Combine(testDirectory, "Poki.lnk"));
             try
             {
                 link.TargetPath = Environment.ProcessPath!; link.Save();
-                var linkPath = ShortcutService.ValidatePath(Path.Combine(testDirectory, "Toki.lnk"));
+                var linkPath = ShortcutService.ValidatePath(Path.Combine(testDirectory, "Poki.lnk"));
                 using var linkIcon = ShortcutService.LoadIconAsync(linkPath).GetAwaiter().GetResult();
                 Check(linkIcon.Width > 0, "Windows .lnk icon resolves without launching its target");
             }
@@ -170,8 +179,8 @@ internal static class Program
     {
         // Construct only the view. No tray, timers, account data, startup writes or app context are started.
         UiTheme.Initialize();
-        var app = (TokiApp)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(TokiApp));
-        typeof(TokiApp).GetField("Data", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+        var app = (PokiApp)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(PokiApp));
+        typeof(PokiApp).GetField("Data", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
             .SetValue(app, new AppData { WindowOpacity = 100 });
         using var form = new ChatForm(app);
         // A non-top-level view hosted in a control can render without opening a desktop window.

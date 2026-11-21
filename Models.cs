@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-namespace Toki;
+namespace Poki;
 
 public sealed class AppData
 {
@@ -80,7 +80,7 @@ public sealed class UsageData
 
 public static class Store
 {
-    public static string DirectoryPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TOKI");
+    public static string DirectoryPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "POKI");
     private static string FilePath => Path.Combine(DirectoryPath, "data.json");
     public static AppData Load()
     {

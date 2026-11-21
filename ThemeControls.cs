@@ -1,20 +1,24 @@
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 
-namespace Toki;
+namespace Poki;
 
 internal static class UiTheme
 {
-    internal static readonly Color Canvas = Color.FromArgb(8, 8, 8);
-    internal static readonly Color Sidebar = Color.FromArgb(11, 11, 11);
-    internal static readonly Color Panel = Color.FromArgb(17, 17, 17);
-    internal static readonly Color Field = Color.FromArgb(25, 25, 25);
-    internal static readonly Color Border = Color.FromArgb(42, 42, 42);
-    internal static readonly Color Accent = Color.FromArgb(45, 198, 88);
-    internal static readonly Color Selected = Color.FromArgb(31, 31, 31);
-    internal static readonly Color Hover = Color.FromArgb(37, 37, 37);
-    internal static readonly Color Muted = Color.FromArgb(151, 151, 151);
-    internal static Font TextFont(float size, bool bold = false) => new("Arial", size, bold ? FontStyle.Bold : FontStyle.Regular);
+    internal static readonly Color Canvas = Color.FromArgb(10, 9, 9);
+    internal static readonly Color Sidebar = Color.FromArgb(14, 12, 12);
+    internal static readonly Color Panel = Color.FromArgb(21, 18, 17);
+    internal static readonly Color Field = Color.FromArgb(31, 26, 24);
+    internal static readonly Color Border = Color.FromArgb(63, 48, 41);
+    internal static readonly Color Accent = Color.FromArgb(255, 172, 119);
+    internal static readonly Color AccentHover = Color.FromArgb(255, 199, 163);
+    internal static readonly Color AccentText = Color.FromArgb(48, 28, 19);
+    internal static readonly Color Selected = Color.FromArgb(56, 39, 31);
+    internal static readonly Color Hover = Color.FromArgb(72, 48, 37);
+    internal static readonly Color Text = Color.FromArgb(247, 240, 235);
+    internal static readonly Color TextSoft = Color.FromArgb(213, 199, 190);
+    internal static readonly Color Muted = Color.FromArgb(174, 157, 149);
+    internal static Font TextFont(float size, bool bold = false) => new("Bahnschrift", size, bold ? FontStyle.Bold : FontStyle.Regular);
     [DllImport("uxtheme.dll", EntryPoint = "#135")] private static extern int SetPreferredAppMode(int mode);
     [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)] private static extern int SetWindowTheme(IntPtr hwnd, string name, string? list);
     [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
@@ -42,7 +46,7 @@ internal static class UiTheme
 }
 
 // Keep native text editing, selection, IME and keyboard support inside a padded surface.
-internal sealed class TokiTextBox : UserControl
+internal sealed class PokiTextBox : UserControl
 {
     private readonly TextBox editor = new() { BorderStyle = BorderStyle.None };
     public bool Flat { get; set; }
@@ -53,10 +57,10 @@ internal sealed class TokiTextBox : UserControl
     public bool UseSystemPasswordChar { get => editor.UseSystemPasswordChar; set => editor.UseSystemPasswordChar = value; }
     public bool ReadOnly { get => editor.ReadOnly; set => editor.ReadOnly = value; }
     public ScrollBars ScrollBars { get => editor.ScrollBars; set => editor.ScrollBars = value; }
-    public TokiTextBox()
+    public PokiTextBox()
     {
         DoubleBuffered = true;
-        BackColor = UiTheme.Field; ForeColor = Color.FromArgb(237, 241, 250);
+        BackColor = UiTheme.Field; ForeColor = UiTheme.Text;
         Height = 42; Margin = new Padding(0, 0, 0, 12);
         editor.BackColor = BackColor; editor.ForeColor = ForeColor;
         editor.Enter += (_, _) => Invalidate(); editor.Leave += (_, _) => Invalidate();
@@ -91,9 +95,9 @@ internal sealed class TokiTextBox : UserControl
     }
 }
 
-internal sealed class TokiComboBox : ComboBox
+internal sealed class PokiComboBox : ComboBox
 {
-    public TokiComboBox()
+    public PokiComboBox()
     {
         BackColor = UiTheme.Field; ForeColor = Color.White; FlatStyle = FlatStyle.Flat;
         DrawMode = DrawMode.OwnerDrawFixed; ItemHeight = 28; DropDownStyle = ComboBoxStyle.DropDownList;
@@ -119,12 +123,12 @@ internal sealed class TokiComboBox : ComboBox
         using var border = new Pen(Focused ? UiTheme.Accent : UiTheme.Border); g.DrawPath(border, path);
         TextRenderer.DrawText(g, Text, Font, new Rectangle(12, 0, Math.Max(1, Width - 42), Height), ForeColor,
             TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
-        using var arrow = new Pen(Color.FromArgb(170, 183, 205), 1.5f);
+        using var arrow = new Pen(UiTheme.Muted, 1.5f);
         g.DrawLines(arrow, new[] { new Point(Width - 23, Height / 2 - 2), new Point(Width - 18, Height / 2 + 3), new Point(Width - 13, Height / 2 - 2) });
     }
 }
 
-internal sealed class TokiButton : Button
+internal sealed class PokiButton : Button
 {
     private bool hover;
     protected override void OnMouseEnter(EventArgs e) { hover = true; base.OnMouseEnter(e); Invalidate(); }
@@ -147,10 +151,10 @@ internal sealed class TokiButton : Button
     }
 }
 
-internal sealed class TokiToggle : CheckBox
+internal sealed class PokiToggle : CheckBox
 {
     public string Description { get; set; } = "";
-    public TokiToggle()
+    public PokiToggle()
     {
         AutoSize = false; Size = new Size(580, 66); Margin = Padding.Empty;
         Cursor = Cursors.Hand; ForeColor = Color.White;
@@ -161,7 +165,7 @@ internal sealed class TokiToggle : CheckBox
         e.Graphics.Clear(Parent?.BackColor ?? UiTheme.Panel);
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         using var title = UiTheme.TextFont(10, true);
-        TextRenderer.DrawText(e.Graphics, Text, title, new Rectangle(0, 12, Math.Max(1, Width - 66), 22), ForeColor,
+        TextRenderer.DrawText(e.Graphics, Text, title, new Rectangle(0, 12, Math.Max(1, Width - 66), 22), UiTheme.Text,
             TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
         TextRenderer.DrawText(e.Graphics, Description, Font, new Rectangle(0, 35, Math.Max(1, Width - 66), 22), UiTheme.Muted,
             TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
@@ -176,7 +180,7 @@ internal sealed class TokiToggle : CheckBox
     }
 }
 
-internal sealed class TokiNumber : UserControl
+internal sealed class PokiNumber : UserControl
 {
     private decimal minimum, maximum = 100, current;
     private readonly TextBox valueText = new() { BorderStyle = BorderStyle.None, TextAlign = HorizontalAlignment.Center,
@@ -190,12 +194,12 @@ internal sealed class TokiNumber : UserControl
         set { var next = Math.Clamp(value, minimum, maximum); var changed = next != current; current = next; valueText.Text = current.ToString(); if (changed) ValueChanged?.Invoke(this, EventArgs.Empty); }
     }
     public event EventHandler? ValueChanged;
-    public TokiNumber()
+    public PokiNumber()
     {
         Height = 36; Width = 140; BackColor = UiTheme.Field; Margin = new Padding(0, 4, 0, 12);
-        var minus = new TokiButton { Text = "−", Dock = DockStyle.Left, Width = 30, FlatStyle = FlatStyle.Flat,
+        var minus = new PokiButton { Text = "−", Dock = DockStyle.Left, Width = 30, FlatStyle = FlatStyle.Flat,
             BackColor = UiTheme.Field, ForeColor = Color.White, AccessibleName = "Decrease value", Cursor = Cursors.Hand };
-        var plus = new TokiButton { Text = "+", Dock = DockStyle.Right, Width = 30, FlatStyle = FlatStyle.Flat,
+        var plus = new PokiButton { Text = "+", Dock = DockStyle.Right, Width = 30, FlatStyle = FlatStyle.Flat,
             BackColor = UiTheme.Field, ForeColor = Color.White, AccessibleName = "Increase value", Cursor = Cursors.Hand };
         minus.FlatAppearance.MouseOverBackColor = plus.FlatAppearance.MouseOverBackColor = UiTheme.Hover;
         minus.Click += (_, _) => Value -= Increment; plus.Click += (_, _) => Value += Increment;

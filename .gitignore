@@ -6,5 +6,5 @@ dist/
 .vscode/
 oauth.local.json
 InspectGoogleAuth.ps1
-InspectToki.ps1
+InspectPoki.ps1
 VerifyGoogleAuth.ps1

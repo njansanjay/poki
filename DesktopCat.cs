@@ -3,13 +3,13 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 
-namespace Toki;
+namespace Poki;
 
 internal static class CatSprites
 {
     private static readonly Lazy<Bitmap> sheet = new(() =>
     {
-        using var stream = typeof(CatSprites).Assembly.GetManifestResourceStream("Toki.Assets.cat-sprites.png")!;
+        using var stream = typeof(CatSprites).Assembly.GetManifestResourceStream("Poki.Assets.cat-sprites.png")!;
         using var bitmap = new Bitmap(stream);
         return new Bitmap(bitmap);
     });

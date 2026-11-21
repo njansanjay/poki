@@ -6,13 +6,14 @@
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <ApplicationIcon>Assets\toki.ico</ApplicationIcon>
+    <ApplicationIcon>Assets\poki.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="tests\**\*.cs" />
     <EmbeddedResource Include="Assets\robot-head.png" />
     <EmbeddedResource Include="Assets\cat-sprites.png" />
-    <EmbeddedResource Include="Assets\toki.ico" />
+    <EmbeddedResource Include="Assets\cat-mark.png" />
+    <EmbeddedResource Include="Assets\poki.ico" />
     <None Update="oauth.local.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Never" />
   </ItemGroup>
 </Project>

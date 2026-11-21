@@ -1,13 +1,14 @@
 using System.ComponentModel;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("Toki.LauncherChecks")]
+[assembly: InternalsVisibleTo("Poki.LauncherChecks")]
 
-namespace Toki;
+namespace Poki;
 
 internal static class PrimaryViews
 {
@@ -28,12 +29,20 @@ internal static class BrandAssets
 {
     private static readonly Lazy<Bitmap> robot = new(() =>
     {
-        using var stream = typeof(BrandAssets).Assembly.GetManifestResourceStream("Toki.Assets.robot-head.png")
-            ?? throw new InvalidOperationException("The TOKI robot asset is missing.");
+        using var stream = typeof(BrandAssets).Assembly.GetManifestResourceStream("Poki.Assets.robot-head.png")
+            ?? throw new InvalidOperationException("The POKI robot asset is missing.");
         using var loaded = new Bitmap(stream);
         return new Bitmap(loaded);
     });
     public static Bitmap Robot => robot.Value;
+    private static readonly Lazy<Bitmap> catMark = new(() =>
+    {
+        using var stream = typeof(BrandAssets).Assembly.GetManifestResourceStream("Poki.Assets.cat-mark.png")
+            ?? throw new InvalidOperationException("The POKI cat mark is missing.");
+        using var loaded = new Bitmap(stream);
+        return new Bitmap(loaded);
+    });
+    public static Bitmap CatMark => catMark.Value;
     // Keep the asset's original tilt and proportions, even if Windows resizes a window.
     public static Rectangle FitRobot(Size bounds)
     {
@@ -44,8 +53,8 @@ internal static class BrandAssets
     }
     public static Icon CreateIcon()
     {
-        using var stream = typeof(BrandAssets).Assembly.GetManifestResourceStream("Toki.Assets.toki.ico")
-            ?? throw new InvalidOperationException("The TOKI app icon is missing.");
+        using var stream = typeof(BrandAssets).Assembly.GetManifestResourceStream("Poki.Assets.poki.ico")
+            ?? throw new InvalidOperationException("The POKI app icon is missing.");
         using var icon = new Icon(stream, 64, 64);
         return (Icon)icon.Clone();
     }
@@ -57,23 +66,24 @@ internal sealed class BrandWordmark : Control
     {
         DoubleBuffered = true; ForeColor = Color.White;
         Font = UiTheme.TextFont(22, true);
-        AccessibleName = "TOKI"; AccessibleRole = AccessibleRole.Graphic;
+        AccessibleName = "POKI"; AccessibleRole = AccessibleRole.Graphic;
     }
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
         var size = Math.Max(1, Math.Min(Height - 8, 58));
         e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-        var bounds = BrandAssets.FitRobot(new Size(size, size));
-        bounds.Offset(0, (Height - size) / 2);
-        CatSprites.Draw(e.Graphics, new Rectangle(0, (Height - size) / 2, size, size));
-        TextRenderer.DrawText(e.Graphics, "toki", Font, new Rectangle(size + 4, 0, Math.Max(0, Width - size - 4), Height), ForeColor,
+        e.Graphics.PixelOffsetMode = PixelOffsetMode.Half;
+        e.Graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
+        e.Graphics.DrawImage(BrandAssets.CatMark, new Rectangle(0, (Height - size) / 2, size, size));
+        TextRenderer.DrawText(e.Graphics, "poki", Font, new Rectangle(size + 4, 0, Math.Max(0, Width - size - 4), Height), ForeColor,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
     }
 }
 
 internal static class ShortcutService
 {
+    private static readonly ConcurrentDictionary<string, Lazy<Task<Bitmap>>> iconCache = new(StringComparer.OrdinalIgnoreCase);
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct ShellFileInfo
     {
@@ -104,8 +114,25 @@ internal static class ShortcutService
         var path = ValidatePath(shortcut.Path);
         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
     }
-    // Shell icon discovery can touch disk or resolve a shortcut. Always run off the UI thread.
-    public static Task<Bitmap> LoadIconAsync(string path) => Task.Run(() =>
+    // Shell icon discovery can touch disk or resolve a shortcut. Cache one source bitmap per path,
+    // then give each tile its own clone so rebuilding the launcher never flashes a fallback icon.
+    private static Task<Bitmap> CachedIconAsync(string path) => iconCache.GetOrAdd(path,
+        key => new Lazy<Task<Bitmap>>(() => LoadIconWithTimeoutAsync(key), LazyThreadSafetyMode.ExecutionAndPublication)).Value;
+    public static async Task<Bitmap> LoadIconAsync(string path) => new(await CachedIconAsync(path).ConfigureAwait(false));
+    public static void Prewarm(IEnumerable<AppShortcut> shortcuts)
+    {
+        foreach (var shortcut in shortcuts) _ = CachedIconAsync(shortcut.Path);
+    }
+    public static Task PreloadAsync(IEnumerable<AppShortcut> shortcuts) =>
+        Task.WhenAll(shortcuts.Select(shortcut => CachedIconAsync(shortcut.Path)));
+    private static async Task<Bitmap> LoadIconWithTimeoutAsync(string path)
+    {
+        var load = LoadIconCoreAsync(path);
+        if (await Task.WhenAny(load, Task.Delay(2000)).ConfigureAwait(false) == load) return await load.ConfigureAwait(false);
+        _ = load.ContinueWith(completed => completed.Result.Dispose(), TaskContinuationOptions.OnlyOnRanToCompletion);
+        return SystemIcons.Application.ToBitmap();
+    }
+    private static Task<Bitmap> LoadIconCoreAsync(string path) => Task.Run(() =>
     {
         var comResult = CoInitializeEx(IntPtr.Zero, 0);
         IntPtr handle = IntPtr.Zero;
@@ -182,7 +209,7 @@ internal sealed class ShortcutTile : Button
             var side = Math.Min(40, Math.Min(Width, Height) - 20);
             e.Graphics.DrawImage(appIcon, new Rectangle((Width - side) / 2, (Height - side) / 2, side, side));
         }
-        else TextRenderer.DrawText(e.Graphics, "▦", Font, ClientRectangle, Color.LightSteelBlue, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        else TextRenderer.DrawText(e.Graphics, "▦", Font, ClientRectangle, UiTheme.Muted, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
     }
     protected override void Dispose(bool disposing)
     {
@@ -194,7 +221,7 @@ internal sealed class ShortcutTile : Button
 internal sealed class ShortcutGrid : UserControl
 {
     private readonly FlowLayoutPanel icons = new() { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(2) };
-    private readonly Label empty = new() { Dock = DockStyle.Fill, Text = "Your apps, one click away.\n\nAdd an app in Settings to see its icon here.", ForeColor = Color.LightSteelBlue, TextAlign = ContentAlignment.MiddleCenter };
+    private readonly Label empty = new() { Dock = DockStyle.Fill, Text = "Your apps, one click away.\n\nAdd an app in Settings to see its icon here.", ForeColor = UiTheme.Muted, TextAlign = ContentAlignment.MiddleCenter };
     private readonly ToolTip tips = new() { InitialDelay = 350, AutoPopDelay = 5000 };
     public event Action<AppShortcut>? ShortcutClicked;
     public ShortcutGrid()
@@ -243,7 +270,7 @@ internal sealed class LauncherActionButton : Button
             using var background = new SolidBrush(UiTheme.Hover);
             e.Graphics.FillEllipse(background, 2, 2, Width - 4, Height - 4);
         }
-        using var pen = new Pen(Color.FromArgb(231, 237, 249), 2) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        using var pen = new Pen(UiTheme.Text, 2) { StartCap = LineCap.Round, EndCap = LineCap.Round };
         var x = (Width - 18) / 2f; var y = (Height - 18) / 2f;
         if (menu)
         {
@@ -259,25 +286,26 @@ internal sealed class LauncherActionButton : Button
 
 internal sealed class ShortcutLauncherForm : Form
 {
-    private readonly TokiApp app;
+    private readonly PokiApp app;
     private readonly ShortcutGrid grid = new() { Dock = DockStyle.Fill };
-    private readonly Label status = new() { Dock = DockStyle.Bottom, Height = 48, Visible = false, ForeColor = Color.LightSteelBlue, TextAlign = ContentAlignment.MiddleLeft };
+    private readonly Label status = new() { Dock = DockStyle.Bottom, Height = 48, Visible = false, ForeColor = UiTheme.Accent, TextAlign = ContentAlignment.MiddleLeft };
     private readonly ToolTip tips = new();
-    public ShortcutLauncherForm(TokiApp app)
+    public ShortcutLauncherForm(PokiApp app)
     {
         this.app = app;
-        Text = "TOKI · Shortcuts"; Icon = BrandAssets.CreateIcon();
+        Text = "POKI · Shortcuts"; Icon = BrandAssets.CreateIcon();
         FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; StartPosition = FormStartPosition.Manual;
         AutoScaleMode = AutoScaleMode.None;
         BackColor = UiTheme.Canvas; ForeColor = Color.White; Font = UiTheme.TextFont(10);
         ApplyOpacity();
-        Padding = new Padding(14); KeyPreview = true; DoubleBuffered = true;
-        var header = new Panel { Dock = DockStyle.Top, Height = 60 };
-        header.Controls.Add(new BrandWordmark { Dock = DockStyle.Left, Width = 135 });
-        var actions = new Panel { Dock = DockStyle.Right, Width = 90 };
-        var expand = ActionButton(true, "Open full TOKI workspace", (_, _) => { Hide(); app.Open(5); });
+        Padding = new Padding(18); KeyPreview = true; DoubleBuffered = true;
+        var header = new Panel { Dock = DockStyle.Top, Height = 78, BackColor = UiTheme.Canvas };
+        header.Controls.Add(new BrandWordmark { Dock = DockStyle.Left, Width = 145, Height = 54 });
+        header.Controls.Add(new Label { Text = "YOUR ISLAND", Dock = DockStyle.Bottom, Height = 20, ForeColor = UiTheme.Muted, Font = UiTheme.TextFont(8, true), Padding = new Padding(4, 0, 0, 0) });
+        var actions = new Panel { Dock = DockStyle.Right, Width = 96 };
+        var expand = ActionButton(true, "Open full POKI workspace", (_, _) => { Hide(); app.Open(5); });
         var close = ActionButton(false, "Close shortcuts", (_, _) => Hide());
-        expand.Location = new Point(0, 9); close.Location = new Point(48, 9);
+        expand.Location = new Point(0, 15); close.Location = new Point(52, 15);
         actions.Controls.Add(expand); actions.Controls.Add(close); header.Controls.Add(actions);
         grid.ShortcutClicked += shortcut =>
         {
@@ -296,6 +324,7 @@ internal sealed class ShortcutLauncherForm : Form
         };
         Controls.Add(grid); Controls.Add(status); Controls.Add(header);
         KeyDown += (_, e) => { if (e.KeyCode == Keys.Escape) { e.Handled = true; Hide(); } };
+        Deactivate += (_, _) => Hide();
         FormClosing += (_, e) => { if (e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; Hide(); } };
     }
     private Button ActionButton(bool menu, string name, EventHandler action)
@@ -303,12 +332,14 @@ internal sealed class ShortcutLauncherForm : Form
         var button = new LauncherActionButton(menu) { AccessibleName = name };
         tips.SetToolTip(button, name); button.Click += action; return button;
     }
-    public void ShowNear(Rectangle anchor)
+    public async void ShowNear(Rectangle anchor)
     {
+        await ShortcutService.PreloadAsync(app.Data.AppShortcuts);
+        if (IsDisposed) return;
         RefreshShortcuts();
         var area = Screen.FromRectangle(anchor).WorkingArea;
         var rows = Math.Max(1, (app.Data.AppShortcuts.Count + 3) / 4);
-        Size = new Size(Math.Min(350, area.Width), Math.Min(Math.Min(480, 100 + rows * 76), area.Height));
+        Size = new Size(Math.Min(390, area.Width), Math.Min(Math.Min(520, 126 + rows * 84), area.Height));
         Location = PrimaryViews.PopupLocation(anchor, Size, area);
         TopMost = app.Data.TopMost; Show(); Activate();
     }

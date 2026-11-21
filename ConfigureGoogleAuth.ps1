@@ -7,7 +7,7 @@ if (Test-Path -LiteralPath $currentConfigPath) {
     try { $currentClientId = (Get-Content -LiteralPath $currentConfigPath -Raw | ConvertFrom-Json).google_client_id } catch { }
 }
 if (-not $currentClientId) {
-    $dataPath = Join-Path (Join-Path $env:LOCALAPPDATA 'TOKI') 'data.json'
+    $dataPath = Join-Path (Join-Path $env:LOCALAPPDATA 'POKI') 'data.json'
     if (Test-Path -LiteralPath $dataPath) {
         try { $currentClientId = (Get-Content -LiteralPath $dataPath -Raw | ConvertFrom-Json).GoogleClientId } catch { }
     }
@@ -32,4 +32,4 @@ Set-Content -LiteralPath $currentConfigPath -Value $config -Encoding UTF8
 if ([System.Text.Encoding]::UTF8.GetString([System.Security.Cryptography.ProtectedData]::Unprotect([Convert]::FromBase64String((Get-Content -LiteralPath $currentConfigPath -Raw | ConvertFrom-Json).google_client_secret_protected), $null, [System.Security.Cryptography.DataProtectionScope]::CurrentUser)) -ne $clientSecret) {
     throw 'Encrypted Google OAuth configuration did not verify.'
 }
-Write-Output 'Configured TOKI Google Desktop OAuth credentials locally. Client secret was encrypted for this Windows user.'
+Write-Output 'Configured POKI Google Desktop OAuth credentials locally. Client secret was encrypted for this Windows user.'

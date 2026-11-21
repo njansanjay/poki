@@ -1,9 +1,9 @@
-# TOKI desktop assistant
+# POKI desktop assistant
 
 floating windows assistant for 
 1. accessing window shortcut apps in single touch.
 2. Write email and sent
-3. chat with toki
+3. chat with poki
 4. set remainder
 5. knowing your chatgpt limit and how long u can use it.
 

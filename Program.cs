@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
 
-namespace Toki;
+namespace Poki;
 
 internal static class Program
 {
@@ -16,13 +16,13 @@ internal static class Program
     {
         ApplicationConfiguration.Initialize();
         UiTheme.Initialize();
-        var app = new TokiApp(args.Contains("--open", StringComparer.OrdinalIgnoreCase));
+        var app = new PokiApp(args.Contains("--open", StringComparer.OrdinalIgnoreCase));
         if (args.Contains("--launcher", StringComparer.OrdinalIgnoreCase)) app.ShowLauncher();
         Application.Run(app);
     }
 }
 
-internal sealed class TokiApp : ApplicationContext
+internal sealed class PokiApp : ApplicationContext
 {
     internal readonly AppData Data = Store.Load();
     private readonly NotifyIcon tray;
@@ -32,7 +32,7 @@ internal sealed class TokiApp : ApplicationContext
     private readonly System.Windows.Forms.Timer timer = new() { Interval = 15000 };
     private bool paused;
 
-    public TokiApp(bool openChat = false)
+    public PokiApp(bool openChat = false)
     {
         var oauthFile = Path.Combine(AppContext.BaseDirectory, "oauth.local.json");
         if (File.Exists(oauthFile))
@@ -59,9 +59,10 @@ internal sealed class TokiApp : ApplicationContext
             }
             catch { }
         }
+        ShortcutService.Prewarm(Data.AppShortcuts);
         orb = new OrbForm(this);
         var menu = new ContextMenuStrip();
-        menu.Items.Add("Open TOKI", null, (_, _) => Open());
+        menu.Items.Add("Open POKI", null, (_, _) => Open());
         menu.Items.Add("App shortcuts", null, (_, _) => ShowLauncher());
         menu.Items.Add("New chat", null, (_, _) => { Data.Messages.Clear(); Save(); Open(); chat?.RefreshChat(); });
         menu.Items.Add("Add reminder", null, (_, _) => { Open(); chat?.SelectTab(1); });
@@ -69,9 +70,9 @@ internal sealed class TokiApp : ApplicationContext
         menu.Items.Add("Usage monitor", null, (_, _) => { Open(); chat?.SelectTab(3); });
         menu.Items.Add("Settings", null, (_, _) => { Open(); chat?.SelectTab(4); });
         menu.Items.Add("Pause notifications", null, (_, _) => { paused = !paused; });
-        menu.Items.Add("Restart TOKI", null, (_, _) => { Application.Restart(); Exit(); });
+        menu.Items.Add("Restart POKI", null, (_, _) => { Application.Restart(); Exit(); });
         menu.Items.Add("Exit", null, (_, _) => Exit());
-        tray = new NotifyIcon { Icon = TokiIcon.Create(), Text = "TOKI", Visible = true, ContextMenuStrip = menu };
+        tray = new NotifyIcon { Icon = PokiIcon.Create(), Text = "POKI", Visible = true, ContextMenuStrip = menu };
         tray.DoubleClick += (_, _) => Open();
         orb.Show();
         if (openChat) Open();
@@ -109,7 +110,7 @@ internal sealed class TokiApp : ApplicationContext
         launcher.ShowNear(anchor);
     }
     internal void OpenShortcutSettings() { Open(4); chat?.FocusShortcutSettings(); }
-    internal void RefreshShortcuts() { chat?.RefreshShortcutGallery(); launcher?.RefreshShortcuts(); }
+    internal void RefreshShortcuts() { ShortcutService.Prewarm(Data.AppShortcuts); chat?.RefreshShortcutGallery(); launcher?.RefreshShortcuts(); }
     internal void ApplyAppearance()
     {
         orb.ApplyAppearance();
@@ -129,7 +130,7 @@ internal sealed class TokiApp : ApplicationContext
         var changed = false;
         foreach (var r in Data.Reminders.Where(x => !x.Completed && x.Due <= DateTime.Now).ToList())
         {
-            Notify("TOKI reminder", r.Text);
+            Notify("POKI reminder", r.Text);
             if (r.Recurrence == "Daily") r.Due = DateTime.Now.Date.AddDays(1).Add(r.Due.TimeOfDay);
             else if (r.Recurrence == "Weekly") { do { r.Due = r.Due.AddDays(7); } while (r.Due <= DateTime.Now); }
             else r.Completed = true;
@@ -144,8 +145,8 @@ internal sealed class TokiApp : ApplicationContext
         if (u.Limit > 0)
         {
             var percent = u.Used * 100.0 / u.Limit;
-            if (percent >= u.Critical && !u.CriticalSent) { Notify("TOKI manual usage estimate", "Your manually entered ChatGPT usage is approaching its limit."); u.CriticalSent = true; changed = true; }
-            else if (percent >= u.Warning && !u.WarningSent) { Notify("TOKI manual usage estimate", $"Your manually entered usage has reached about {percent:0}%."); u.WarningSent = true; changed = true; }
+            if (percent >= u.Critical && !u.CriticalSent) { Notify("POKI manual usage estimate", "Your manually entered ChatGPT usage is approaching its limit."); u.CriticalSent = true; changed = true; }
+            else if (percent >= u.Warning && !u.WarningSent) { Notify("POKI manual usage estimate", $"Your manually entered usage has reached about {percent:0}%."); u.WarningSent = true; changed = true; }
         }
         if (changed) Save();
     }
@@ -161,7 +162,7 @@ internal sealed class OrbForm : Form
     [DllImport("user32.dll")] private static extern bool UnregisterHotKey(IntPtr window, int id);
     private const int HotkeyId = 0x544F;
     private const int WmHotkey = 0x0312;
-    private readonly TokiApp app;
+    private readonly PokiApp app;
     private string registeredHotkey = "Off";
     private Point dragOrigin;
     private Point windowOrigin;
@@ -174,7 +175,7 @@ internal sealed class OrbForm : Form
     private bool hiddenForFullscreen;
     private bool launcherActive;
     private long nextFullscreenCheck;
-    public OrbForm(TokiApp app)
+    public OrbForm(PokiApp app)
     {
         this.app = app;
         AutoScaleMode = AutoScaleMode.None;
@@ -182,8 +183,8 @@ internal sealed class OrbForm : Form
         StartPosition = FormStartPosition.Manual;
         ShowInTaskbar = false;
         TopMost = app.Data.TopMost;
-        Text = "TOKI desktop cat";
-        AccessibleName = "TOKI cat — click for app shortcuts";
+        Text = "POKI desktop cat";
+        AccessibleName = "POKI cat — click for app shortcuts";
         Icon = BrandAssets.CreateIcon(); Cursor = Cursors.Hand;
         var size = Math.Clamp(app.Data.OrbSize, 40, 192);
         MinimumSize = new Size(size, size); MaximumSize = MinimumSize;
@@ -192,7 +193,7 @@ internal sealed class OrbForm : Form
         motion.Place(Left);
         var menu = new ContextMenuStrip();
         menu.Items.Add("App shortcuts", null, (_, _) => app.ShowLauncher());
-        menu.Items.Add("Open full TOKI", null, (_, _) => app.Open(5));
+        menu.Items.Add("Open full POKI", null, (_, _) => app.Open(5));
         menu.Items.Add("Settings", null, (_, _) => app.Open(4));
         menu.Items.Add("Exit", null, (_, _) => app.Exit());
         ContextMenuStrip = menu;
@@ -316,26 +317,26 @@ internal sealed class ChatForm : Form
     private static readonly Color InputSurface = UiTheme.Field;
     private static readonly Color Accent = UiTheme.Accent;
     private static readonly Color Muted = UiTheme.Muted;
-    private readonly TokiApp app;
+    private readonly PokiApp app;
     private readonly Panel pageHost = new() { Dock = DockStyle.Fill, BackColor = Canvas };
     private readonly List<Panel> pages = new();
     private int selectedPage;
     private readonly FlowLayoutPanel history = new() { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Canvas };
-    private readonly TokiTextBox input = new() { Flat = true, Dock = DockStyle.Fill, Multiline = true, BorderStyle = BorderStyle.None, PlaceholderText = "Ask TOKI anything..." };
+    private readonly PokiTextBox input = new() { Flat = true, Dock = DockStyle.Fill, Multiline = true, BorderStyle = BorderStyle.None, PlaceholderText = "Ask POKI anything..." };
     private readonly FlowLayoutPanel reminders = new() { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
     private readonly Label usageStatus = new() { AutoSize = true };
     private readonly Label hotkeyHint = new() { AutoSize = true, ForeColor = UiTheme.Muted, Anchor = AnchorStyles.Right };
-    private readonly TokiTextBox keyBox = new() { UseSystemPasswordChar = true, Width = 280 };
-    private readonly TokiTextBox modelBox = new() { Width = 280 };
-    private readonly TokiTextBox urlBox = new() { Width = 280 };
-    private readonly TokiComboBox providerBox = new() { Width = 280, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly PokiTextBox keyBox = new() { UseSystemPasswordChar = true, Width = 280 };
+    private readonly PokiTextBox modelBox = new() { Width = 280 };
+    private readonly PokiTextBox urlBox = new() { Width = 280 };
+    private readonly PokiComboBox providerBox = new() { Width = 280, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly HttpClient http = new() { Timeout = TimeSpan.FromMinutes(2) };
     private readonly EmailService email;
-    private TokiComboBox? accountBox;
+    private PokiComboBox? accountBox;
     private Label? accountEmpty;
     private readonly AccountAvatar accountAvatar = new() { Size = new Size(38, 38) };
     private readonly Label accountStatus = new() { Width = 335, Height = 42, ForeColor = Color.White, Text = "No email account connected" };
-    private readonly Label connectionStatus = new() { Width = 390, Height = 42, ForeColor = Color.LightSkyBlue, Text = "Choose an account to connect." };
+    private readonly Label connectionStatus = new() { Width = 390, Height = 42, ForeColor = UiTheme.Accent, Text = "Choose an account to connect." };
     private Button? gmailButton;
     private Button? outlookButton;
     private Button? cancelConnectionButton;
@@ -360,14 +361,14 @@ internal sealed class ChatForm : Form
     private readonly Label sectionDescription = new() { AutoSize = true, ForeColor = Muted };
     private DateTime lastChatRefresh;
 
-    public ChatForm(TokiApp app)
+    public ChatForm(PokiApp app)
     {
         this.app = app;
         email = new EmailService(app);
-        Text = "TOKI  ·  Desktop assistant"; Size = new Size(1000, 720); MinimumSize = new Size(780, 580);
+        Text = "POKI  ·  Desktop assistant"; Size = new Size(1000, 720); MinimumSize = new Size(780, 580);
         FormBorderStyle = FormBorderStyle.None; Padding = new Padding(1);
         StartPosition = FormStartPosition.CenterScreen; TopMost = app.Data.TopMost;
-        BackColor = Canvas; ForeColor = Color.White; Icon = TokiIcon.Create();
+        BackColor = Canvas; ForeColor = Color.White; Icon = PokiIcon.Create();
         ApplyOpacity();
         Font = UiTheme.TextFont(10);
         AutoScaleMode = AutoScaleMode.Dpi;
@@ -386,7 +387,7 @@ internal sealed class ChatForm : Form
         foreach (var i in new[] { 5, 0, 1, 2, 3, 4 })
         {
             var index = i;
-            var nav = new TokiButton { Text = names[i], Width = 164, Height = 40, FlatStyle = FlatStyle.Flat,
+            var nav = new PokiButton { Text = names[i], Width = 164, Height = 40, FlatStyle = FlatStyle.Flat,
                 TextAlign = ContentAlignment.MiddleLeft, Font = UiTheme.TextFont(10, true), Cursor = Cursors.Hand, Margin = new Padding(0, 0, 0, 7) };
             nav.FlatAppearance.BorderSize = 0;
             nav.Click += (_, _) => SelectTab(index);
@@ -394,12 +395,12 @@ internal sealed class ChatForm : Form
         }
         sidebar.Controls.Add(navHost);
         settingsNavigation = new FlowLayoutPanel { Bounds = new Rectangle(10, 100, 164, 368), FlowDirection = FlowDirection.TopDown, WrapContents = false, Visible = false };
-        var back = new TokiButton { Text = "← Workspace", Size = new Size(164, 34), TextAlign = ContentAlignment.MiddleLeft,
+        var back = new PokiButton { Text = "← Workspace", Size = new Size(164, 34), TextAlign = ContentAlignment.MiddleLeft,
             FlatStyle = FlatStyle.Flat, BackColor = UiTheme.Sidebar, ForeColor = UiTheme.Muted, Cursor = Cursors.Hand };
         back.Click += (_, _) => SelectTab(5); settingsNavigation.Controls.Add(back);
         foreach (var category in SettingsSections.Keys)
         {
-            var button = new TokiButton { Text = category, Size = new Size(164, 34), TextAlign = ContentAlignment.MiddleLeft,
+            var button = new PokiButton { Text = category, Size = new Size(164, 34), TextAlign = ContentAlignment.MiddleLeft,
                 FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = UiTheme.Sidebar, Cursor = Cursors.Hand, Margin = new Padding(0, 0, 0, 3) };
             button.FlatAppearance.MouseOverBackColor = UiTheme.Hover;
             button.Click += (_, _) => ShowSettingsCategory(category);
@@ -407,7 +408,7 @@ internal sealed class ChatForm : Form
         }
         sidebar.Controls.Add(settingsNavigation);
         var footer = new Panel { Dock = DockStyle.Bottom, Height = 92, BackColor = sidebar.BackColor };
-        footer.Controls.Add(new Label { Dock = DockStyle.Top, Height = 34, Text = "●  Ready to help", ForeColor = Color.FromArgb(116, 218, 171), TextAlign = ContentAlignment.MiddleLeft });
+        footer.Controls.Add(new Label { Dock = DockStyle.Top, Height = 34, Text = "●  Ready to help", ForeColor = UiTheme.Accent, TextAlign = ContentAlignment.MiddleLeft });
         hotkeyHint.Text = app.Data.OpenHotkey == "Off" ? "Ready when you are" : app.Data.OpenHotkey + "  to open";
         hotkeyHint.Dock = DockStyle.Bottom; hotkeyHint.Height = 32; hotkeyHint.TextAlign = ContentAlignment.MiddleLeft;
         footer.Controls.Add(hotkeyHint); sidebar.Controls.Add(footer);
@@ -434,14 +435,14 @@ internal sealed class ChatForm : Form
     private void AddWindowChrome()
     {
         var bar = new Panel { Dock = DockStyle.Top, Height = 42, BackColor = Canvas };
-        var caption = new Label { Text = "TOKI", Dock = DockStyle.Fill, ForeColor = Muted, Padding = new Padding(16, 0, 0, 0),
+        var caption = new Label { Text = "POKI", Dock = DockStyle.Fill, ForeColor = Muted, Padding = new Padding(16, 0, 0, 0),
             TextAlign = ContentAlignment.MiddleLeft, Font = UiTheme.TextFont(9, true) };
         caption.MouseDown += (_, e) => { if (e.Button == MouseButtons.Left) { ReleaseCapture(); SendMessage(Handle, 0xA1, (IntPtr)2, IntPtr.Zero); } };
         caption.DoubleClick += (_, _) => ToggleMaximize();
         bar.Controls.Add(caption);
         foreach (var item in new[] { ("−", (Action)(() => WindowState = FormWindowState.Minimized)), ("□", (Action)ToggleMaximize), ("×", (Action)(() => Hide())) })
         {
-            var button = new TokiButton { Text = item.Item1, Dock = DockStyle.Right, Width = 40, BackColor = Canvas,
+            var button = new PokiButton { Text = item.Item1, Dock = DockStyle.Right, Width = 40, BackColor = Canvas,
                 ForeColor = Muted, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
                 AccessibleName = item.Item1 == "×" ? "Close window" : item.Item1 == "□" ? "Maximize window" : "Minimize window" };
             button.FlatAppearance.MouseOverBackColor = UiTheme.Hover;
@@ -474,24 +475,24 @@ internal sealed class ChatForm : Form
     {
         foreach (Control control in root.Controls)
         {
-            if (control is DarkDateTimeInput or TokiComboBox) continue;
-            if (control is TokiTextBox field)
+            if (control is DarkDateTimeInput or PokiComboBox) continue;
+            if (control is PokiTextBox field)
             {
                 field.BackColor = ReferenceEquals(field, input) ? Surface : InputSurface;
-                field.ForeColor = Color.FromArgb(237, 241, 250);
+                field.ForeColor = UiTheme.Text;
                 continue;
             }
             if (control is ScrollableControl scroll && scroll.AutoScroll)
                 scroll.HandleCreated += (_, _) => SetWindowTheme(scroll.Handle, "DarkMode_Explorer", null);
             switch (control)
             {
-                case TokiTextBox box:
+                case PokiTextBox box:
                     box.BackColor = ReferenceEquals(box, input) ? Surface : InputSurface;
                     box.ForeColor = Color.White;
                     box.BorderStyle = ReferenceEquals(box, input) ? BorderStyle.None : BorderStyle.FixedSingle;
                     break;
                 case RichTextBox box: box.BackColor = Surface; box.ForeColor = Color.White; break;
-                case TokiComboBox box:
+                case PokiComboBox box:
                     box.BackColor = InputSurface; box.ForeColor = Color.White; box.FlatStyle = FlatStyle.Flat;
                     box.DrawMode = DrawMode.OwnerDrawFixed; box.ItemHeight = 25;
                     box.DrawItem += (_, e) =>
@@ -512,7 +513,7 @@ internal sealed class ChatForm : Form
     }
     private void UpdateNavigation()
     {
-        var descriptions = new[] { "Your space to think, write, and get things done.", "Stay on top of what matters.", "Write and send with confidence.", "A clear view of your manual usage estimate.", "Make TOKI work the way you do.", "Your favorite apps, one click away." };
+        var descriptions = new[] { "Your space to think, write, and get things done.", "Stay on top of what matters.", "Write and send with confidence.", "A clear view of your manual usage estimate.", "Make POKI work the way you do.", "Your favorite apps, one click away." };
         var selected = selectedPage;
         sectionTitle.Text = pages[selected].Text;
         sectionDescription.Text = descriptions[selected];
@@ -544,24 +545,24 @@ internal sealed class ChatForm : Form
         sectionTitle.Text = category;
         sectionDescription.Text = category switch
         {
-            "General" => "The essentials for how TOKI starts and stays with you.",
+            "General" => "The essentials for how POKI starts and stays with you.",
             "Appearance" => "Make every surface feel at home on your desktop.",
             "Desktop cat" => "A little company, always within reach.",
             "App shortcuts" => "Your favorite apps, one click from your cat.",
-            _ => "Make TOKI work the way you do."
+            _ => "Make POKI work the way you do."
         };
         if (settingsScroll != null) settingsScroll.AutoScrollPosition = Point.Empty;
     }
     private Panel Page(string title, Control content) { var p = new Panel { Text = title, BackColor = Canvas, ForeColor = ForeColor, Padding = new Padding(4) }; p.Controls.Add(content); return p; }
     private static Button Button(string text, EventHandler click)
     {
-        var b = new TokiButton { Text = text, AutoSize = true, MinimumSize = new Size(0, 36), FlatStyle = FlatStyle.Flat, BackColor = Accent, ForeColor = Color.White, Padding = new Padding(14, 7, 14, 7), Cursor = Cursors.Hand, Font = UiTheme.TextFont(9.5f, true), Margin = new Padding(0, 0, 8, 8) };
-        b.FlatAppearance.BorderSize = 0; b.FlatAppearance.MouseOverBackColor = Color.FromArgb(63, 216, 105);
+        var b = new PokiButton { Text = text, AutoSize = true, MinimumSize = new Size(0, 36), FlatStyle = FlatStyle.Flat, BackColor = Accent, ForeColor = UiTheme.AccentText, Padding = new Padding(14, 7, 14, 7), Cursor = Cursors.Hand, Font = UiTheme.TextFont(9.5f, true), Margin = new Padding(0, 0, 8, 8) };
+        b.FlatAppearance.BorderSize = 0; b.FlatAppearance.MouseOverBackColor = UiTheme.AccentHover;
         b.Click += click; return b;
     }
     private static Button SecondaryButton(string text, EventHandler click)
     {
-        var b = Button(text, click); b.BackColor = InputSurface; b.ForeColor = Color.FromArgb(226, 231, 241);
+        var b = Button(text, click); b.BackColor = InputSurface; b.ForeColor = UiTheme.TextSoft;
         b.FlatAppearance.MouseOverBackColor = UiTheme.Hover; return b;
     }
     private Panel MakeShortcuts()
@@ -634,7 +635,7 @@ internal sealed class ChatForm : Form
                     if (!File.Exists(item.Path)) throw new FileNotFoundException("Shortcut target was not found.", item.Path);
                     Process.Start(new ProcessStartInfo(item.Path) { UseShellExecute = true });
                 }
-                catch (Exception ex) { MessageBox.Show(this, ex.Message, "TOKI"); }
+                catch (Exception ex) { MessageBox.Show(this, ex.Message, "POKI"); }
             });
         }
         menu.Show(anchor, 0, anchor.Height);
@@ -648,7 +649,7 @@ internal sealed class ChatForm : Form
         if (app.Data.Messages.Count == 0)
         {
             var welcome = new SurfaceCard { Width = Math.Min(610, rowWidth - 12), Height = 160, Padding = new Padding(22), Margin = new Padding(4, 16, 0, 0) };
-            welcome.Controls.Add(new Label { Text = "Ask TOKI anything\n\nWrite a question, set a reminder, draft an email, or open an app.\nTry “remind me to study at 7 PM” or “open Calculator”.", Dock = DockStyle.Fill, Font = UiTheme.TextFont(11), ForeColor = Color.FromArgb(225, 232, 244) });
+            welcome.Controls.Add(new Label { Text = "Ask POKI anything\n\nWrite a question, set a reminder, draft an email, or open an app.\nTry “remind me to study at 7 PM” or “open Calculator”.", Dock = DockStyle.Fill, Font = UiTheme.TextFont(11), ForeColor = UiTheme.TextSoft });
             history.Controls.Add(welcome);
         }
         if (app.Data.Messages.Count > 60)
@@ -663,8 +664,8 @@ internal sealed class ChatForm : Form
             var row = new Panel { Width = rowWidth, Height = bubbleHeight + 11, BackColor = Canvas, Margin = new Padding(0, 0, 0, 2) };
             var bubble = new SurfaceCard { Width = bubbleWidth, Height = bubbleHeight, Padding = new Padding(16, 12, 16, 12), BackColor = user ? UiTheme.Selected : Surface,
                 Location = new Point(user ? rowWidth - bubbleWidth - 4 : 4, 3) };
-            bubble.Controls.Add(new Label { Text = m.Content, Dock = DockStyle.Fill, ForeColor = Color.FromArgb(234, 238, 247), Font = UiTheme.TextFont(10.5f), TextAlign = ContentAlignment.TopLeft });
-            bubble.Controls.Add(new Label { Text = $"{(user ? "YOU" : "TOKI")}  ·  {m.At:g}", Dock = DockStyle.Top, Height = 30, ForeColor = user ? Muted : Accent, Font = UiTheme.TextFont(9, true) });
+            bubble.Controls.Add(new Label { Text = m.Content, Dock = DockStyle.Fill, ForeColor = UiTheme.Text, Font = UiTheme.TextFont(10.5f), TextAlign = ContentAlignment.TopLeft });
+            bubble.Controls.Add(new Label { Text = $"{(user ? "YOU" : "POKI")}  ·  {m.At:g}", Dock = DockStyle.Top, Height = 30, ForeColor = user ? Muted : Accent, Font = UiTheme.TextFont(9, true) });
             var copyMenu = new ContextMenuStrip(); copyMenu.Items.Add("Copy message", null, (_, _) => Clipboard.SetText(m.Content));
             bubble.ContextMenuStrip = copyMenu;
             foreach (Control child in bubble.Controls) child.ContextMenuStrip = copyMenu;
@@ -756,7 +757,7 @@ internal sealed class ChatForm : Form
                 var bounds = SystemInformation.VirtualScreen;
                 using var bitmap = new Bitmap(bounds.Width, bounds.Height);
                 using (var graphics = Graphics.FromImage(bitmap)) graphics.CopyFromScreen(bounds.Left, bounds.Top, 0, 0, bounds.Size);
-                var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "TOKI");
+                var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "POKI");
                 Directory.CreateDirectory(folder);
                 var path = Path.Combine(folder, $"Screenshot-{DateTime.Now:yyyyMMdd-HHmmss}.png");
                 bitmap.Save(path, System.Drawing.Imaging.ImageFormat.Png);
@@ -786,9 +787,9 @@ internal sealed class ChatForm : Form
         editor.RowStyles.Add(new RowStyle(SizeType.Absolute, 36)); editor.RowStyles.Add(new RowStyle(SizeType.Absolute, 54)); editor.RowStyles.Add(new RowStyle(SizeType.Absolute, 54)); editor.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         editor.Controls.Add(new Label { Text = "Create a reminder", Dock = DockStyle.Fill, Font = UiTheme.TextFont(12, true), ForeColor = Color.White, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
         editor.SetColumnSpan(editor.GetControlFromPosition(0, 0)!, 2);
-        var title = new TokiTextBox { Dock = DockStyle.Fill, PlaceholderText = "What should I remind you about?", Margin = new Padding(0, 3, 10, 3) };
+        var title = new PokiTextBox { Dock = DockStyle.Fill, PlaceholderText = "What should I remind you about?", Margin = new Padding(0, 3, 10, 3) };
         var due = new DarkDateTimeInput { Dock = DockStyle.Fill, Value = DateTime.Now.AddHours(1), Margin = new Padding(0, 3, 10, 3) };
-        var repeat = new TokiComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0, 3, 0, 3) };
+        var repeat = new PokiComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0, 3, 0, 3) };
         repeat.Items.AddRange(new object[] { "None", "Daily", "Weekly" }); repeat.SelectedIndex = 0;
         title.Margin = new Padding(0, 3, 0, 9);
         editor.Controls.Add(title, 0, 1); editor.SetColumnSpan(title, 2);
@@ -816,7 +817,7 @@ internal sealed class ChatForm : Form
     {
         reminders.SuspendLayout(); reminders.Controls.Clear();
         if (app.Data.Reminders.Count == 0)
-            reminders.Controls.Add(new Label { Text = "No reminders yet. Add one above or ask TOKI in Chat.", AutoSize = true, ForeColor = Muted, Padding = new Padding(10, 10, 0, 0) });
+            reminders.Controls.Add(new Label { Text = "No reminders yet. Add one above or ask POKI in Chat.", AutoSize = true, ForeColor = Muted, Padding = new Padding(10, 10, 0, 0) });
         foreach (var r in app.Data.Reminders.OrderBy(x => x.Completed).ThenBy(x => x.Due).ToList())
         {
             var row = new SurfaceCard { Width = Math.Max(340, reminders.ClientSize.Width - 30), Height = 88, Margin = new Padding(0, 0, 0, 10), Padding = new Padding(17, 11, 15, 10) };
@@ -840,7 +841,7 @@ internal sealed class ChatForm : Form
         panel.Controls.Add(new Label { Text = "Email composer", AutoSize = true, Font = new Font(Font, FontStyle.Bold) });
         var identityRow = new FlowLayoutPanel { Width = 390, Height = 46, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
         identityRow.Controls.Add(accountAvatar); identityRow.Controls.Add(accountStatus); panel.Controls.Add(identityRow);
-        accountBox = new TokiComboBox { Width = 390, DropDownStyle = ComboBoxStyle.DropDownList };
+        accountBox = new PokiComboBox { Width = 390, DropDownStyle = ComboBoxStyle.DropDownList };
         accountBox.SelectedIndexChanged += (_, _) =>
         {
             var selected = SelectedAccount();
@@ -855,12 +856,12 @@ internal sealed class ChatForm : Form
         panel.Controls.Add(Button("Disconnect selected", (_, _) =>
         {
             var account = SelectedAccount(); if (account == null) return;
-            if (MessageBox.Show(this, $"Remove {account.Address} from TOKI?", "Disconnect", MessageBoxButtons.YesNo) != DialogResult.Yes) return;
+            if (MessageBox.Show(this, $"Remove {account.Address} from POKI?", "Disconnect", MessageBoxButtons.YesNo) != DialogResult.Yes) return;
             app.Data.Accounts.Remove(account); app.Data.ActiveEmailAccountId = null; app.Save(); RefreshAccounts();
         }));
-        var recipient = new TokiTextBox { Width = 390, PlaceholderText = "Recipient email" };
-        var subject = new TokiTextBox { Width = 390, PlaceholderText = "Subject" };
-        var body = new TokiTextBox { Width = 390, Height = 240, Multiline = true, ScrollBars = ScrollBars.Vertical, PlaceholderText = "Write or edit your message" };
+        var recipient = new PokiTextBox { Width = 390, PlaceholderText = "Recipient email" };
+        var subject = new PokiTextBox { Width = 390, PlaceholderText = "Subject" };
+        var body = new PokiTextBox { Width = 390, Height = 240, Multiline = true, ScrollBars = ScrollBars.Vertical, PlaceholderText = "Write or edit your message" };
         panel.Controls.Add(recipient); panel.Controls.Add(subject); panel.Controls.Add(body);
         panel.Controls.Add(Button("Read latest inbox", async (_, _) => await ShowInbox(false)));
         panel.Controls.Add(Button("Read unread inbox", async (_, _) => await ShowInbox(true)));
@@ -869,8 +870,8 @@ internal sealed class ChatForm : Form
             var account = SelectedAccount(); if (account == null) { MessageBox.Show("Connect or select an account first."); return; }
             if (!Regex.IsMatch(recipient.Text.Trim(), @"^[^\s@]+@[^\s@]+\.[^\s@]+$")) { MessageBox.Show("Enter a valid recipient address."); return; }
             if (MessageBox.Show($"From: {account.Address}\nTo: {recipient.Text}\nSubject: {subject.Text}\n\n{body.Text}", "Review and approve email", MessageBoxButtons.YesNo) != DialogResult.Yes) return;
-            try { await email.SendAsync(account, recipient.Text.Trim(), subject.Text, body.Text); app.Notify("TOKI email", "Email sent."); MessageBox.Show("Email sent."); }
-            catch (Exception ex) { app.Notify("TOKI email", "Email sending failed."); MessageBox.Show(ex.Message); }
+            try { await email.SendAsync(account, recipient.Text.Trim(), subject.Text, body.Text); app.Notify("POKI email", "Email sent."); MessageBox.Show("Email sent."); }
+            catch (Exception ex) { app.Notify("POKI email", "Email sending failed."); MessageBox.Show(ex.Message); }
         }));
         panel.Controls.Add(Button("Open in default mail app", (_, _) =>
         {
@@ -879,7 +880,7 @@ internal sealed class ChatForm : Form
             try { Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true }); }
             catch (Exception ex) { MessageBox.Show(ex.Message); }
         }));
-        panel.Controls.Add(new Label { Text = "OAuth app client IDs are configured in Settings. TOKI never asks for your email password. Connected sending always requires preview approval.", Width = 390, Height = 60 });
+        panel.Controls.Add(new Label { Text = "OAuth app client IDs are configured in Settings. POKI never asks for your email password. Connected sending always requires preview approval.", Width = 390, Height = 60 });
         return Page("Email", panel);
     }
     private Panel MakePremiumEmail()
@@ -892,7 +893,7 @@ internal sealed class ChatForm : Form
         var identity = new FlowLayoutPanel { Height = 56, Width = 440, BackColor = Surface, WrapContents = false };
         identity.Controls.Add(accountAvatar); identity.Controls.Add(accountStatus); accountContent.Controls.Add(identity);
         accountContent.Controls.Add(new Label { Text = "Active sender", Height = 26, Width = 440, ForeColor = Color.FromArgb(161, 175, 202) });
-        accountBox = new TokiComboBox { Width = 440, Height = 38, DropDownStyle = ComboBoxStyle.DropDownList };
+        accountBox = new PokiComboBox { Width = 440, Height = 38, DropDownStyle = ComboBoxStyle.DropDownList };
         accountEmpty = new Label { Text = "No account selected", Width = 440, Height = 34, BackColor = InputSurface, ForeColor = Muted, Padding = new Padding(10, 7, 0, 0) };
         accountBox.SelectedIndexChanged += (_, _) =>
         {
@@ -912,7 +913,7 @@ internal sealed class ChatForm : Form
         disconnectButton = SecondaryButton("Disconnect", (_, _) =>
         {
             var account = SelectedAccount(); if (account == null) return;
-            if (MessageBox.Show(this, $"Remove {account.Address} from TOKI?", "Disconnect", MessageBoxButtons.YesNo) != DialogResult.Yes) return;
+            if (MessageBox.Show(this, $"Remove {account.Address} from POKI?", "Disconnect", MessageBoxButtons.YesNo) != DialogResult.Yes) return;
             app.Data.Accounts.Remove(account); app.Data.ActiveEmailAccountId = null; app.Save(); RefreshAccounts();
             connectionStatus.Text = "Account disconnected.";
         });
@@ -923,9 +924,9 @@ internal sealed class ChatForm : Form
         var compose = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Surface };
         compose.Controls.Add(new Label { Text = "Compose email", Height = 36, Width = 440, Font = UiTheme.TextFont(13, true), ForeColor = Color.White });
         compose.Controls.Add(new Label { Text = "Write, review, and send from your connected account.", Height = 34, Width = 440, ForeColor = Color.FromArgb(161, 175, 202) });
-        var recipient = new TokiTextBox { Width = 440, Height = 44, PlaceholderText = "To · recipient@example.com" };
-        var subject = new TokiTextBox { Width = 440, Height = 44, PlaceholderText = "Subject" };
-        var body = new TokiTextBox { Width = 440, Height = 240, Multiline = true, ScrollBars = ScrollBars.Vertical, PlaceholderText = "Write your message..." };
+        var recipient = new PokiTextBox { Width = 440, Height = 44, PlaceholderText = "To · recipient@example.com" };
+        var subject = new PokiTextBox { Width = 440, Height = 44, PlaceholderText = "Subject" };
+        var body = new PokiTextBox { Width = 440, Height = 240, Multiline = true, ScrollBars = ScrollBars.Vertical, PlaceholderText = "Write your message..." };
         compose.Controls.Add(recipient); compose.Controls.Add(subject); compose.Controls.Add(body);
         var readActions = new FlowLayoutPanel { Width = 440, Height = 53, BackColor = Surface, WrapContents = false };
         readActions.Controls.Add(SecondaryButton("Latest inbox", async (_, _) => await ShowInbox(false)));
@@ -933,21 +934,21 @@ internal sealed class ChatForm : Form
         var sendActions = new FlowLayoutPanel { Width = 440, Height = 53, BackColor = Surface, WrapContents = false };
         sendActions.Controls.Add(Button("Review & send", async (_, _) =>
         {
-            var account = SelectedAccount(); if (account == null) { MessageBox.Show(this, "Connect or select an account first.", "TOKI"); return; }
-            if (!Regex.IsMatch(recipient.Text.Trim(), @"^[^\s@]+@[^\s@]+\.[^\s@]+$")) { MessageBox.Show(this, "Enter a valid recipient address.", "TOKI"); return; }
+            var account = SelectedAccount(); if (account == null) { MessageBox.Show(this, "Connect or select an account first.", "POKI"); return; }
+            if (!Regex.IsMatch(recipient.Text.Trim(), @"^[^\s@]+@[^\s@]+\.[^\s@]+$")) { MessageBox.Show(this, "Enter a valid recipient address.", "POKI"); return; }
             if (MessageBox.Show(this, $"From: {account.Address}\nTo: {recipient.Text}\nSubject: {subject.Text}\n\n{body.Text}", "Review and approve email", MessageBoxButtons.YesNo) != DialogResult.Yes) return;
-            try { await email.SendAsync(account, recipient.Text.Trim(), subject.Text, body.Text); app.Notify("TOKI email", "Email sent."); MessageBox.Show(this, "Email sent.", "TOKI"); }
-            catch (Exception ex) { app.Notify("TOKI email", "Email sending failed."); MessageBox.Show(this, ex.Message, "TOKI"); }
+            try { await email.SendAsync(account, recipient.Text.Trim(), subject.Text, body.Text); app.Notify("POKI email", "Email sent."); MessageBox.Show(this, "Email sent.", "POKI"); }
+            catch (Exception ex) { app.Notify("POKI email", "Email sending failed."); MessageBox.Show(this, ex.Message, "POKI"); }
         }));
         sendActions.Controls.Add(SecondaryButton("Open in mail app", (_, _) =>
         {
-            if (!Regex.IsMatch(recipient.Text.Trim(), @"^[^\s@]+@[^\s@]+\.[^\s@]+$")) { MessageBox.Show(this, "Enter a valid recipient address.", "TOKI"); return; }
+            if (!Regex.IsMatch(recipient.Text.Trim(), @"^[^\s@]+@[^\s@]+\.[^\s@]+$")) { MessageBox.Show(this, "Enter a valid recipient address.", "POKI"); return; }
             var uri = $"mailto:{Uri.EscapeDataString(recipient.Text.Trim())}?subject={Uri.EscapeDataString(subject.Text)}&body={Uri.EscapeDataString(body.Text)}";
             try { Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true }); }
-            catch (Exception ex) { MessageBox.Show(this, ex.Message, "TOKI"); }
+            catch (Exception ex) { MessageBox.Show(this, ex.Message, "POKI"); }
         }));
         compose.Controls.Add(sendActions);
-        compose.Controls.Add(new Label { Text = "TOKI asks you to approve every email before sending.", Width = 440, Height = 32, ForeColor = Color.FromArgb(161, 175, 202) });
+        compose.Controls.Add(new Label { Text = "POKI asks you to approve every email before sending.", Width = 440, Height = 32, ForeColor = Color.FromArgb(161, 175, 202) });
         composeCard.Controls.Add(compose);
         gallery.Controls.Add(accountCard); gallery.Controls.Add(composeCard);
         void ArrangeCards()
@@ -1002,17 +1003,17 @@ internal sealed class ChatForm : Form
             var progress = new Progress<string>(message => connectionStatus.Text = message);
             var account = await email.ConnectAsync(provider, progress, connectionCancellation.Token);
             RefreshAccounts(); connectionStatus.Text = $"Connected: {account.Address}";
-            MessageBox.Show(this, $"Connected {account.Address}.", "TOKI email");
+            MessageBox.Show(this, $"Connected {account.Address}.", "POKI email");
         }
         catch (OperationCanceledException)
         {
             connectionStatus.Text = "Sign-in stopped or timed out. Check the browser, then try again.";
-            MessageBox.Show(this, connectionStatus.Text, "TOKI email");
+            MessageBox.Show(this, connectionStatus.Text, "POKI email");
         }
         catch (Exception ex)
         {
             connectionStatus.Text = "Sign-in failed. See details.";
-            MessageBox.Show(this, "Sign-in failed: " + ex.Message, "TOKI email");
+            MessageBox.Show(this, "Sign-in failed: " + ex.Message, "POKI email");
         }
         finally
         {
@@ -1034,12 +1035,12 @@ internal sealed class ChatForm : Form
         var panel = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Surface };
         panel.Controls.Add(new Label { Text = "Manual usage tracker", Width = 600, Height = 38, Font = UiTheme.TextFont(14, true), ForeColor = Color.White });
         panel.Controls.Add(new Label { Text = "Live ChatGPT subscription usage is unavailable. Enter your own limit and used count to see an estimate. API usage is separate.", Width = 600, Height = 58, ForeColor = Muted });
-        var plan = new TokiTextBox { Width = 250, PlaceholderText = "Plan (optional)", Text = app.Data.Usage.Plan };
-        var limit = new TokiNumber { Width = 140, Maximum = 1000000, Value = Math.Clamp(app.Data.Usage.Limit, 0, 1000000) };
-        var used = new TokiNumber { Width = 140, Maximum = 1000000, Value = Math.Clamp(app.Data.Usage.Used, 0, 1000000) };
+        var plan = new PokiTextBox { Width = 250, PlaceholderText = "Plan (optional)", Text = app.Data.Usage.Plan };
+        var limit = new PokiNumber { Width = 140, Maximum = 1000000, Value = Math.Clamp(app.Data.Usage.Limit, 0, 1000000) };
+        var used = new PokiNumber { Width = 140, Maximum = 1000000, Value = Math.Clamp(app.Data.Usage.Used, 0, 1000000) };
         var reset = new DarkDateTimeInput { Width = 240, Height = 40, Value = app.Data.Usage.Reset > DateTime.Now ? app.Data.Usage.Reset : DateTime.Now.AddMonths(1) };
-        var warning = new TokiNumber { Width = 100, Minimum = 1, Maximum = 100, Value = Math.Clamp(app.Data.Usage.Warning, 1, 100) };
-        var critical = new TokiNumber { Width = 100, Minimum = 1, Maximum = 100, Value = Math.Clamp(app.Data.Usage.Critical, 1, 100) };
+        var warning = new PokiNumber { Width = 100, Minimum = 1, Maximum = 100, Value = Math.Clamp(app.Data.Usage.Warning, 1, 100) };
+        var critical = new PokiNumber { Width = 100, Minimum = 1, Maximum = 100, Value = Math.Clamp(app.Data.Usage.Critical, 1, 100) };
         panel.Controls.Add(new Label { Text = "Plan", AutoSize = true }); panel.Controls.Add(plan);
         panel.Controls.Add(new Label { Text = "Manual limit", AutoSize = true }); panel.Controls.Add(limit);
         panel.Controls.Add(new Label { Text = "Manual used count", AutoSize = true }); panel.Controls.Add(used);
@@ -1101,32 +1102,32 @@ internal sealed class ChatForm : Form
             Width = 360, Height = 46, Value = Math.Clamp(app.Data.WindowOpacity, 55, 100), AccessibleName = "Window opacity percentage" };
         void UpdateOpacity()
         {
-            opacityValue.Text = $"{opacity.Value}%  ·  Lower values show more of your desktop behind TOKI.";
+            opacityValue.Text = $"{opacity.Value}%  ·  Lower values show more of your desktop behind POKI.";
             app.Data.WindowOpacity = opacity.Value; app.Save(); app.ApplyAppearance();
         }
         opacity.ValueChanged += (_, _) => UpdateOpacity();
-        opacityValue.Text = $"{opacity.Value}%  ·  Lower values show more of your desktop behind TOKI.";
+        opacityValue.Text = $"{opacity.Value}%  ·  Lower values show more of your desktop behind POKI.";
         appearanceSection.Controls.Add(opacityValue); appearanceSection.Controls.Add(opacity);
         launcherSection.Controls.Add(new Label { Text = "Your cat walks along the taskbar. Click it for app shortcuts, or drag it to another screen.", Width = 610, Height = 42, ForeColor = Muted });
         launcherSection.Controls.Add(new Label { Text = "Keyboard shortcut opens", AutoSize = true });
-        var primary = new TokiComboBox { Width = 390, DropDownStyle = ComboBoxStyle.DropDownList, AccessibleName = "Keyboard shortcut opens" };
+        var primary = new PokiComboBox { Width = 390, DropDownStyle = ComboBoxStyle.DropDownList, AccessibleName = "Keyboard shortcut opens" };
         primary.Items.AddRange(PrimaryViews.Names);
         primary.SelectedItem = PrimaryViews.Names.Contains(app.Data.PrimaryView) ? app.Data.PrimaryView : "Shortcuts";
-        var primaryStatus = new Label { Text = "Shortcuts opens the compact icon launcher. ☰ opens the full TOKI app.", Width = 610, Height = 38, ForeColor = Muted };
+        var primaryStatus = new Label { Text = "Shortcuts opens the compact icon launcher. ☰ opens the full POKI app.", Width = 610, Height = 38, ForeColor = Muted };
         primary.SelectedIndexChanged += (_, _) =>
         {
             app.Data.PrimaryView = primary.Text; app.Save();
             primaryStatus.Text = "Saved. Your keyboard shortcut now opens " + primary.Text + ".";
         };
         launcherSection.Controls.Add(primary); launcherSection.Controls.Add(primaryStatus);
-        var floatAnimation = new TokiToggle { Text = "Cat animation", Description = "Walk, blink and swish the tail. Pause to keep the cat seated.", Checked = app.Data.FloatAnimation };
+        var floatAnimation = new PokiToggle { Text = "Cat animation", Description = "Walk, blink and swish the tail. Pause to keep the cat seated.", Checked = app.Data.FloatAnimation };
         floatAnimation.CheckedChanged += (_, _) => { app.Data.FloatAnimation = floatAnimation.Checked; app.Save(); app.ApplyAppearance(); };
         launcherSection.Controls.Add(floatAnimation);
-        var hideInFullscreen = new TokiToggle { Text = "Hide cat in fullscreen", Description = "Keep the cat out of the way during fullscreen videos, games and presentations.", Checked = app.Data.HideCatInFullscreen };
+        var hideInFullscreen = new PokiToggle { Text = "Hide cat in fullscreen", Description = "Keep the cat out of the way during fullscreen videos, games and presentations.", Checked = app.Data.HideCatInFullscreen };
         hideInFullscreen.CheckedChanged += (_, _) => { app.Data.HideCatInFullscreen = hideInFullscreen.Checked; app.Save(); app.ApplyAppearance(); };
         launcherSection.Controls.Add(hideInFullscreen);
         launcherSection.Controls.Add(new Label { Text = "Cat size (40–192 pixels, applies immediately)", AutoSize = true });
-        var size = new TokiNumber { Minimum = 40, Maximum = 192, Increment = 4, Value = Math.Clamp(app.Data.OrbSize, 40, 192), Width = 140, AccessibleName = "Desktop cat size in pixels" };
+        var size = new PokiNumber { Minimum = 40, Maximum = 192, Increment = 4, Value = Math.Clamp(app.Data.OrbSize, 40, 192), Width = 140, AccessibleName = "Desktop cat size in pixels" };
         size.ValueChanged += (_, _) => { app.Data.OrbSize = (int)size.Value; app.Save(); app.ApplyAppearance(); };
         launcherSection.Controls.Add(size);
         launcherSection.Controls.Add(SecondaryButton("Preview one-touch view", (_, _) => app.TogglePrimary()));
@@ -1147,7 +1148,7 @@ internal sealed class ChatForm : Form
                 foreach (Control content in card.Controls)
                     foreach (Control item in content.Controls)
                     {
-                        if (item is TokiTextBox or TokiComboBox or ListBox or TokiToggle) item.Width = cardWidth - 54;
+                        if (item is PokiTextBox or PokiComboBox or ListBox or PokiToggle) item.Width = cardWidth - 54;
                         else if (item is Label label && !label.AutoSize) label.Width = cardWidth - 54;
                     }
             }
@@ -1155,14 +1156,14 @@ internal sealed class ChatForm : Form
             }
             finally { arranging = false; }
         };
-        var googleClient = new TokiTextBox { Width = 280, PlaceholderText = "Google OAuth client ID", Text = app.Data.GoogleClientId };
+        var googleClient = new PokiTextBox { Width = 280, PlaceholderText = "Google OAuth client ID", Text = app.Data.GoogleClientId };
         string? importedGoogleSecret = null;
         string? importedGoogleClientId = null;
-        var microsoftClient = new TokiTextBox { Width = 280, PlaceholderText = "Microsoft OAuth client ID", Text = app.Data.MicrosoftClientId };
+        var microsoftClient = new PokiTextBox { Width = 280, PlaceholderText = "Microsoft OAuth client ID", Text = app.Data.MicrosoftClientId };
         providerBox.Items.AddRange(new object[] { "OpenAI", "OpenAI-compatible" }); providerBox.SelectedItem = app.Data.Provider;
         if (providerBox.SelectedIndex < 0) providerBox.SelectedIndex = 0;
         modelBox.Text = app.Data.Model; urlBox.Text = app.Data.BaseUrl;
-        aiSection.Controls.Add(new Label { Text = "TOKI uses a built-in offline answer library. No AI service, API key, or internet connection is needed for chat.", Width = 610, Height = 52, ForeColor = Muted });
+        aiSection.Controls.Add(new Label { Text = "POKI uses a built-in offline answer library. No AI service, API key, or internet connection is needed for chat.", Width = 610, Height = 52, ForeColor = Muted });
         emailSection.Controls.Add(new Label { Text = "Connect Gmail or Outlook from the Email page after adding the provider's OAuth client ID.", Width = 610, Height = 38, ForeColor = Muted });
         emailSection.Controls.Add(googleClient); emailSection.Controls.Add(microsoftClient);
         emailSection.Controls.Add(SecondaryButton("Import Google desktop OAuth JSON", (_, _) =>
@@ -1178,14 +1179,14 @@ internal sealed class ChatForm : Form
                 importedGoogleSecret = installed.GetProperty("client_secret").GetString();
                 if (string.IsNullOrWhiteSpace(importedGoogleSecret)) throw new InvalidOperationException("No client secret found in the Desktop app OAuth JSON.");
                 importedGoogleClientId = googleClient.Text;
-                MessageBox.Show(this, "Google Desktop OAuth credentials imported. Click Save settings, then connect Gmail in Email.", "TOKI");
+                MessageBox.Show(this, "Google Desktop OAuth credentials imported. Click Save settings, then connect Gmail in Email.", "POKI");
             }
             catch (Exception ex) { MessageBox.Show("This must be a Google Desktop app OAuth JSON file: " + ex.Message); }
         }));
-        var startup = new TokiToggle { Text = "Launch at login", Description = "Open TOKI automatically when you sign in.", Checked = app.Data.StartWithWindows };
-        var top = new TokiToggle { Text = "Always on top", Description = "Keep your cat and TOKI windows within reach.", Checked = app.Data.TopMost };
-        var notifications = new TokiToggle { Text = "Notifications and sound", Description = "Hear from TOKI when a reminder is due.", Checked = app.Data.Notifications };
-        var speak = new TokiToggle { Text = "Read responses aloud", Description = "Speak chat replies using the Windows voice.", Checked = app.Data.SpeakResponses };
+        var startup = new PokiToggle { Text = "Launch at login", Description = "Open POKI automatically when you sign in.", Checked = app.Data.StartWithWindows };
+        var top = new PokiToggle { Text = "Always on top", Description = "Keep your cat and POKI windows within reach.", Checked = app.Data.TopMost };
+        var notifications = new PokiToggle { Text = "Notifications and sound", Description = "Hear from POKI when a reminder is due.", Checked = app.Data.Notifications };
+        var speak = new PokiToggle { Text = "Read responses aloud", Description = "Speak chat replies using the Windows voice.", Checked = app.Data.SpeakResponses };
         top.CheckedChanged += (_, _) => { app.Data.TopMost = top.Checked; app.Save(); app.ApplyAppearance(); };
         notifications.CheckedChanged += (_, _) => { app.Data.Notifications = notifications.Checked; app.Save(); };
         speak.CheckedChanged += (_, _) => { app.Data.SpeakResponses = speak.Checked; app.Save(); };
@@ -1196,23 +1197,23 @@ internal sealed class ChatForm : Form
             {
                 using var run = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true);
                 if (run == null) throw new InvalidOperationException("Windows startup settings could not be opened.");
-                if (startup.Checked) run.SetValue("TOKI", $"\"{Environment.ProcessPath}\""); else run.DeleteValue("TOKI", false);
+                if (startup.Checked) run.SetValue("POKI", $"\"{Environment.ProcessPath}\""); else run.DeleteValue("POKI", false);
                 app.Data.StartWithWindows = startup.Checked; app.Save();
             }
             catch (Exception ex) { startup.Checked = app.Data.StartWithWindows; MessageBox.Show(this, ex.Message, "Startup setting"); }
         };
-        var speechRate = new TokiNumber { Minimum = -10, Maximum = 10, Value = Math.Clamp(app.Data.SpeechRate, -10, 10), Width = 100 };
-        var hotkey = new TokiComboBox { Width = 210, DropDownStyle = ComboBoxStyle.DropDownList };
+        var speechRate = new PokiNumber { Minimum = -10, Maximum = 10, Value = Math.Clamp(app.Data.SpeechRate, -10, 10), Width = 100 };
+        var hotkey = new PokiComboBox { Width = 210, DropDownStyle = ComboBoxStyle.DropDownList };
         hotkey.Items.AddRange(new object[] { "Ctrl+Alt+T", "Ctrl+Shift+Space", "Off" });
         hotkey.SelectedItem = app.Data.OpenHotkey;
         if (hotkey.SelectedIndex < 0) hotkey.SelectedIndex = 0;
         generalSection.Controls.Add(startup); generalSection.Controls.Add(top); generalSection.Controls.Add(notifications);
         generalSection.Controls.Add(speak); generalSection.Controls.Add(new Label { Text = "Speech speed", AutoSize = true }); generalSection.Controls.Add(speechRate);
-        generalSection.Controls.Add(new Label { Text = "Keyboard shortcut to open TOKI", AutoSize = true }); generalSection.Controls.Add(hotkey);
+        generalSection.Controls.Add(new Label { Text = "Keyboard shortcut to open POKI", AutoSize = true }); generalSection.Controls.Add(hotkey);
         generalSection.Controls.Add(Button("Save settings", (_, _) =>
         {
             if (!Uri.TryCreate(urlBox.Text.Trim(), UriKind.Absolute, out var uri) || uri.Scheme != "https") { MessageBox.Show("Use an HTTPS API base URL."); return; }
-            if (!app.SetOpenHotkey(hotkey.Text)) { MessageBox.Show(this, "Windows is already using that shortcut. Choose another one.", "TOKI"); return; }
+            if (!app.SetOpenHotkey(hotkey.Text)) { MessageBox.Show(this, "Windows is already using that shortcut. Choose another one.", "POKI"); return; }
             app.Data.OpenHotkey = hotkey.Text;
             hotkeyHint.Text = hotkey.Text == "Off" ? "Ready when you are" : hotkey.Text + "  to open";
             app.Data.Provider = providerBox.Text; app.Data.Model = modelBox.Text.Trim(); app.Data.BaseUrl = uri.ToString().TrimEnd('/');
@@ -1222,7 +1223,7 @@ internal sealed class ChatForm : Form
             var newGoogleClientId = googleClient.Text.Trim();
             if (importedGoogleSecret != null && newGoogleClientId != importedGoogleClientId)
             {
-                MessageBox.Show(this, "The Google client ID changed after importing the JSON. Import the matching Desktop OAuth JSON again.", "TOKI");
+                MessageBox.Show(this, "The Google client ID changed after importing the JSON. Import the matching Desktop OAuth JSON again.", "POKI");
                 return;
             }
             if (importedGoogleSecret != null) app.Data.EncryptedGoogleClientSecret = Store.Protect(importedGoogleSecret);
@@ -1231,14 +1232,14 @@ internal sealed class ChatForm : Form
             try
             {
                 using var run = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true);
-                if (startup.Checked) run?.SetValue("TOKI", $"\"{Environment.ProcessPath}\""); else run?.DeleteValue("TOKI", false);
+                if (startup.Checked) run?.SetValue("POKI", $"\"{Environment.ProcessPath}\""); else run?.DeleteValue("POKI", false);
                 app.Data.StartWithWindows = startup.Checked;
             }
             catch (Exception ex) { MessageBox.Show("Startup setting failed: " + ex.Message); }
             app.Save(); app.ApplyAppearance(); MessageBox.Show("Settings saved and applied.");
         }));
         privacySection.Controls.Add(SecondaryButton("Delete API key", (_, _) => { app.Data.EncryptedKey = ""; app.Save(); MessageBox.Show("API key deleted."); }));
-        privacySection.Controls.Add(SecondaryButton("Clear chat history", (_, _) => { if (MessageBox.Show("Delete local chat history?", "TOKI", MessageBoxButtons.YesNo) == DialogResult.Yes) { app.Data.Messages.Clear(); app.Save(); RefreshChat(); } }));
+        privacySection.Controls.Add(SecondaryButton("Clear chat history", (_, _) => { if (MessageBox.Show("Delete local chat history?", "POKI", MessageBoxButtons.YesNo) == DialogResult.Yes) { app.Data.Messages.Clear(); app.Save(); RefreshChat(); } }));
         shortcutSection.Controls.Add(new Label { Text = "Add an .exe or Windows .lnk. Its app icon appears in the floating launcher and Shortcuts page. Hover an icon to see its name.", Width = 610, Height = 48, ForeColor = Muted });
         var shortcuts = new ListBox { Width = 390, Height = 108 };
         void RefreshShortcuts()
@@ -1247,8 +1248,8 @@ internal sealed class ChatForm : Form
             foreach (var item in app.Data.AppShortcuts) shortcuts.Items.Add($"{item.Name}  ·  {Path.GetFileName(item.Path)}");
         }
         RefreshShortcuts(); shortcutSection.Controls.Add(shortcuts);
-        var shortcutName = new TokiTextBox { Width = 390, PlaceholderText = "Name, e.g. Photoshop" };
-        var shortcutPath = new TokiTextBox { Width = 390, PlaceholderText = "Selected application", ReadOnly = true };
+        var shortcutName = new PokiTextBox { Width = 390, PlaceholderText = "Name, e.g. Photoshop" };
+        var shortcutPath = new PokiTextBox { Width = 390, PlaceholderText = "Selected application", ReadOnly = true };
         shortcutSection.Controls.Add(shortcutName); shortcutSection.Controls.Add(shortcutPath);
         shortcutSection.Controls.Add(SecondaryButton("Choose application or shortcut", (_, _) =>
         {
@@ -1260,11 +1261,11 @@ internal sealed class ChatForm : Form
         shortcutSection.Controls.Add(Button("Add app shortcut", (_, _) =>
         {
             var name = shortcutName.Text.Trim();
-            if (name.Length == 0) { MessageBox.Show(this, "Enter a name for this application.", "TOKI"); return; }
+            if (name.Length == 0) { MessageBox.Show(this, "Enter a name for this application.", "POKI"); return; }
             string validatedPath;
             try { validatedPath = ShortcutService.ValidatePath(shortcutPath.Text); }
-            catch (Exception ex) { MessageBox.Show(this, ex.Message, "TOKI"); return; }
-            if (app.Data.AppShortcuts.Any(x => x.Name.Equals(name, StringComparison.OrdinalIgnoreCase))) { MessageBox.Show(this, "That shortcut name already exists.", "TOKI"); return; }
+            catch (Exception ex) { MessageBox.Show(this, ex.Message, "POKI"); return; }
+            if (app.Data.AppShortcuts.Any(x => x.Name.Equals(name, StringComparison.OrdinalIgnoreCase))) { MessageBox.Show(this, "That shortcut name already exists.", "POKI"); return; }
             app.Data.AppShortcuts.Add(new AppShortcut { Name = name, Path = validatedPath }); app.Save(); RefreshShortcuts(); app.RefreshShortcuts(); shortcutName.Clear(); shortcutPath.Clear();
         }));
         shortcutSection.Controls.Add(SecondaryButton("Remove selected shortcut", (_, _) =>
@@ -1319,7 +1320,7 @@ internal sealed class DarkDateTimeInput : UserControl
         Height = 42;
         MinimumSize = new Size(120, 32);
         Padding = new Padding(1);
-        var picker = new TokiButton { Dock = DockStyle.Right, Width = 34, Text = "▾", FlatStyle = FlatStyle.Flat, BackColor = Field,
+        var picker = new PokiButton { Dock = DockStyle.Right, Width = 34, Text = "▾", FlatStyle = FlatStyle.Flat, BackColor = Field,
             ForeColor = Muted, Cursor = Cursors.Hand, AccessibleName = "Choose date and time" };
         picker.FlatAppearance.BorderSize = 0;
         picker.FlatAppearance.MouseOverBackColor = UiTheme.Hover;
@@ -1377,8 +1378,8 @@ internal sealed class DarkDateTimeInput : UserControl
             {
                 var date = new DateTime(month.Year, month.Month, day);
                 var active = date.Date == current.Date;
-                var button = new TokiButton { Text = day.ToString(), Dock = DockStyle.Fill, Margin = new Padding(1), FlatStyle = FlatStyle.Flat,
-                    BackColor = active ? UiTheme.Accent : UiTheme.Field, ForeColor = Color.White,
+                var button = new PokiButton { Text = day.ToString(), Dock = DockStyle.Fill, Margin = new Padding(1), FlatStyle = FlatStyle.Flat,
+                    BackColor = active ? UiTheme.Accent : UiTheme.Field, ForeColor = active ? UiTheme.AccentText : Color.White,
                     Cursor = Cursors.Hand, AccessibleName = date.ToString("D") };
                 button.FlatAppearance.BorderSize = 0;
                 button.FlatAppearance.MouseOverBackColor = UiTheme.Hover;
@@ -1388,19 +1389,19 @@ internal sealed class DarkDateTimeInput : UserControl
         }
         Button Nav(string caption, int x, int direction)
         {
-            var button = new TokiButton { Text = caption, Bounds = new Rectangle(x, 12, 34, 30), FlatStyle = FlatStyle.Flat,
+            var button = new PokiButton { Text = caption, Bounds = new Rectangle(x, 12, 34, 30), FlatStyle = FlatStyle.Flat,
                 BackColor = Field, ForeColor = Color.White, Cursor = Cursors.Hand };
             button.FlatAppearance.BorderSize = 0;
             button.FlatAppearance.MouseOverBackColor = UiTheme.Hover;
             button.Click += (_, _) => { month = month.AddMonths(direction); RenderMonth(); };
             return button;
         }
-        var time = new TokiTextBox { Location = new Point(68, 299), Size = new Size(130, 36), Text = current.ToString("h:mm tt"),
+        var time = new PokiTextBox { Location = new Point(68, 299), Size = new Size(130, 36), Text = current.ToString("h:mm tt"),
             BackColor = Field, ForeColor = Color.White, PlaceholderText = "Time, e.g. 9:30 AM" };
-        var apply = new TokiButton { Text = "Apply", Bounds = new Rectangle(207, 299, 89, 36), FlatStyle = FlatStyle.Flat,
-            BackColor = UiTheme.Accent, ForeColor = Color.White, Cursor = Cursors.Hand };
+        var apply = new PokiButton { Text = "Apply", Bounds = new Rectangle(207, 299, 89, 36), FlatStyle = FlatStyle.Flat,
+            BackColor = UiTheme.Accent, ForeColor = UiTheme.AccentText, Cursor = Cursors.Hand };
         apply.FlatAppearance.BorderSize = 0;
-        apply.FlatAppearance.MouseOverBackColor = Color.FromArgb(63, 216, 105);
+        apply.FlatAppearance.MouseOverBackColor = UiTheme.AccentHover;
         popup.AcceptButton = apply;
         popup.KeyPreview = true;
         popup.KeyDown += (_, e) => { if (e.KeyCode == Keys.Escape) popup.DialogResult = DialogResult.Cancel; };
@@ -1457,7 +1458,7 @@ internal sealed class SurfaceCard : Panel
     }
 }
 
-internal static class TokiIcon
+internal static class PokiIcon
 {
     public static Icon Create() => BrandAssets.CreateIcon();
 }

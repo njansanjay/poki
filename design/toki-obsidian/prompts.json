@@ -1,0 +1,147 @@
+{
+  "tool": "Built-in image_gen",
+  "theme": "POKI Obsidian",
+  "basePrompt": "Use case: precise UI theme edit. Image 1 is the EDIT TARGET, an existing POKI interface screen. Image 2 is ONLY the approved BLACK style reference. Transform Image 1 into POKI Obsidian dark mode. Preserve Image 1's exact content, text, hierarchy, sidebar selection, layout, composition, screen count, rows, toggles, fields, dialogs, app icons and aspect ratios. Never replace its page contents with the Shortcuts page from Image 2. Match Image 2's neutral black and charcoal palette: canvas #08090B, sidebar/titlebar #0C0D10, cards #14161B, raised inputs #1C1E25, borders #2A2D35, white primary text #F1F2F6 and readable muted text #A3A8B5. Violet accent #9480FF with selected backgrounds #28223F. Outer backdrop near-black #050607. Convert ALL white/lavender surface areas to layered black/charcoal; black not blue or purple as the dominant color. Keep the POKI robot bright blue and real app logos recognizable. Use matte surfaces, subtle edges and depth; no neon, no glow, no large bright panels, no heavy gradients. Adapt warning/success callouts to muted dark amber/dark green with legible lighter text. Preserve exact readable English labels and all explicitly manual usage labels. Preserve equal-size hamburger and close glyphs. High-fidelity flat front-on app design image, 1536x1024 landscape. The only behavioral change allowed is that any theme selector must show Dark selected instead of Light.",
+  "masterPrompt": "Use case: ui-mockup, precise theme transformation of an existing UI screenshot. Edit the attached POKI Shortcuts screen into a premium BLACK dark-mode version, named POKI Obsidian. Preserve exact layout, all controls, all readable wording, eight app icons, sidebar order, hierarchy, blue robot logo and aspect ratios. Change only color treatment and dark-mode surface styling. Neutral near-black main canvas #08090B, black sidebar and title bar #0C0D10, elevated charcoal cards #14161B, raised inputs #1C1E25, fine gray borders #2A2D35. Off-white primary text #F1F2F6, readable secondary text #A3A8B5, restrained violet actions #9480FF and muted selected background #28223F. Outer backdrop almost black #050607. This must look BLACK, not navy blue or dark purple. Keep plenty of negative space, fine-line icons, subtle depth, matte surfaces, no glow, no neon, no glass, no strong gradients, no white large panels. Keep authentic app icon colors and vivid blue POKI robot. Recolor white caption text as needed for contrast. Same front-facing flat app window, thin native window controls, 1536x1024 landscape. High-quality crisp design, preserve exact English labels.",
+  "screens": [
+    {
+      "number": 1,
+      "title": "Floating robot & one-touch launcher",
+      "file": "screens/01-floating-launcher.png",
+      "editInstruction": "Edit target screen: Floating robot & one-touch launcher. Keep the exact screen-specific layout and wording of Image 1.",
+      "references": [
+        "Violet Air: 01-floating-launcher.png",
+        "Obsidian: 02-shortcuts-workspace.png"
+      ]
+    },
+    {
+      "number": 2,
+      "title": "Shortcuts — full workspace",
+      "file": "screens/02-shortcuts-workspace.png",
+      "editInstruction": "Edit target screen: Shortcuts — full workspace. Keep the exact screen-specific layout and wording of Image 1.",
+      "references": [
+        "Violet Air: 02-shortcuts-workspace.png"
+      ]
+    },
+    {
+      "number": 3,
+      "title": "Chat & assistant actions",
+      "file": "screens/03-chat.png",
+      "editInstruction": "Edit target screen: Chat & assistant actions. Keep the exact screen-specific layout and wording of Image 1.",
+      "references": [
+        "Violet Air: 03-chat.png",
+        "Obsidian: 02-shortcuts-workspace.png"
+      ]
+    },
+    {
+      "number": 4,
+      "title": "Reminder overview",
+      "file": "screens/04-reminders.png",
+      "editInstruction": "Edit target screen: Reminder overview. Keep the exact screen-specific layout and wording of Image 1.",
+      "references": [
+        "Violet Air: 04-reminders.png",
+        "Obsidian: 02-shortcuts-workspace.png"
+      ]
+    },
+    {
+      "number": 5,
+      "title": "Add / edit reminder",
+      "file": "screens/05-reminder-editor.png",
+      "editInstruction": "Edit target screen: Add / edit reminder. Keep the exact screen-specific layout and wording of Image 1.",
+      "references": [
+        "Violet Air: 05-reminder-editor.png",
+        "Obsidian: 02-shortcuts-workspace.png"
+      ]
+    },
+    {
+      "number": 6,
+      "title": "Email inbox & account switching",
+      "file": "screens/06-email-inbox.png",
+      "editInstruction": "Edit target screen: Email inbox & account switching. Keep the exact screen-specific layout and wording of Image 1.",
+      "references": [
+        "Violet Air: 06-email-inbox.png",
+        "Obsidian: 02-shortcuts-workspace.png"
+      ]
+    },
+    {
+      "number": 7,
+      "title": "Email composition & send approval",
+      "file": "screens/07-email-compose.png",
+      "editInstruction": "Edit target screen: Email composition & send approval. Keep the exact screen-specific layout and wording of Image 1.",
+      "references": [
+        "Violet Air: 07-email-compose.png",
+        "Obsidian: 02-shortcuts-workspace.png"
+      ]
+    },
+    {
+      "number": 8,
+      "title": "Manual ChatGPT usage tracker",
+      "file": "screens/08-usage.png",
+      "editInstruction": "Edit target screen: Manual ChatGPT usage tracker. Keep the exact screen-specific layout and wording of Image 1.",
+      "references": [
+        "Violet Air: 08-usage.png",
+        "Obsidian: 02-shortcuts-workspace.png"
+      ]
+    },
+    {
+      "number": 9,
+      "title": "Settings — appearance & one-touch behavior",
+      "file": "screens/09-settings-general.png",
+      "editInstruction": "Edit target screen: Settings — appearance & one-touch behavior. Keep the exact screen-specific layout and wording of Image 1.",
+      "references": [
+        "Violet Air: 09-settings-general.png",
+        "Obsidian: 02-shortcuts-workspace.png"
+      ]
+    },
+    {
+      "number": 10,
+      "title": "Settings — manage app shortcuts",
+      "file": "screens/10-settings-shortcuts.png",
+      "editInstruction": "Edit target screen: Settings — manage app shortcuts. Keep the exact screen-specific layout and wording of Image 1.",
+      "references": [
+        "Violet Air: 10-settings-shortcuts.png",
+        "Obsidian: 02-shortcuts-workspace.png"
+      ]
+    },
+    {
+      "number": 11,
+      "title": "Settings — AI provider & voice",
+      "file": "screens/11-settings-ai-voice.png",
+      "editInstruction": "Edit target screen: Settings — AI provider & voice. Keep the exact screen-specific layout and wording of Image 1.",
+      "references": [
+        "Violet Air: 11-settings-ai-voice.png",
+        "Obsidian: 02-shortcuts-workspace.png"
+      ]
+    },
+    {
+      "number": 12,
+      "title": "Settings — connected accounts & sign-in",
+      "file": "screens/12-settings-accounts.png",
+      "editInstruction": "Edit target screen: Settings — connected accounts & sign-in. Keep the exact screen-specific layout and wording of Image 1.",
+      "references": [
+        "Violet Air: 12-settings-accounts.png",
+        "Obsidian: 02-shortcuts-workspace.png"
+      ]
+    },
+    {
+      "number": 13,
+      "title": "Settings — notifications & privacy",
+      "file": "screens/13-settings-privacy-notifications.png",
+      "editInstruction": "Edit target screen: Settings — notifications & privacy. Keep the exact screen-specific layout and wording of Image 1.",
+      "references": [
+        "Violet Air: 13-settings-privacy-notifications.png",
+        "Obsidian: 02-shortcuts-workspace.png"
+      ]
+    },
+    {
+      "number": 14,
+      "title": "Tray menu, empty states & feedback",
+      "file": "screens/14-system-states.png",
+      "editInstruction": "Edit target screen: Tray menu, empty states & feedback. Keep the exact screen-specific layout and wording of Image 1.",
+      "references": [
+        "Violet Air: 14-system-states.png",
+        "Obsidian: 02-shortcuts-workspace.png"
+      ]
+    }
+  ]
+}
