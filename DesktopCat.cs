@@ -133,14 +133,14 @@ internal sealed class LayeredCat : IDisposable
     private IntPtr memory, original;
     private int displayed = -1;
     private Point previousLocation;
-    public void Render(Form window, int frame = 4, bool left = false)
+    public void Render(Form window, int frame = 4, bool left = false, bool force = false)
     {
         if (canvas != window.Size || memory == IntPtr.Zero)
         {
             Dispose(); canvas = window.Size; memory = CreateCompatibleDC(IntPtr.Zero);
         }
         var key = frame + (left ? 8 : 0);
-        if (key == displayed && previousLocation == window.Location) return;
+        if (!force && key == displayed && previousLocation == window.Location) return;
         if (!frames.TryGetValue(key, out var handle))
         {
             using var bitmap = new Bitmap(canvas.Width, canvas.Height, PixelFormat.Format32bppPArgb);

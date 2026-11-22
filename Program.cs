@@ -117,6 +117,7 @@ internal sealed class PokiApp : ApplicationContext
         if (chat != null) { chat.TopMost = Data.TopMost; chat.ApplyOpacity(); }
         if (launcher != null) { launcher.TopMost = Data.TopMost; launcher.ApplyOpacity(); }
     }
+    internal void RefreshOrbAfterMainWindowActivation() => orb.RefreshAfterMainWindowActivation();
     internal void Notify(string title, string message)
     {
         if (paused || !Data.Notifications) return;
@@ -162,6 +163,8 @@ internal sealed class OrbForm : Form
     [DllImport("user32.dll")] private static extern bool UnregisterHotKey(IntPtr window, int id);
     private const int HotkeyId = 0x544F;
     private const int WmHotkey = 0x0312;
+    private const int WmDisplayChange = 0x007E;
+    private const int WmDpiChanged = 0x02E0;
     private readonly PokiApp app;
     private string registeredHotkey = "Off";
     private Point dragOrigin;
@@ -261,6 +264,30 @@ internal sealed class OrbForm : Form
         catRenderer.Dispose();
         if (!UpdateFullscreenVisibility(true) && IsHandleCreated && Visible) catRenderer.Render(this);
     }
+    internal void RefreshAfterMainWindowActivation()
+    {
+        if (IsDisposed || !IsHandleCreated || !Visible) return;
+
+        var size = Math.Clamp(app.Data.OrbSize, 40, 192);
+        var expectedSize = new Size(size, size);
+        if (Size != expectedSize)
+        {
+            MaximumSize = Size.Empty;
+            MinimumSize = expectedSize;
+            MaximumSize = expectedSize;
+            Size = expectedSize;
+        }
+
+        var area = Screen.FromRectangle(Bounds).WorkingArea;
+        var expectedLocation = CatMotion.GroundLocation(area, size, motion.X);
+        if (Location != expectedLocation)
+        {
+            Location = expectedLocation;
+            motion.Place(Left);
+        }
+
+        catRenderer.Render(this, motion.Frame, motion.FacingLeft, force: true);
+    }
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
@@ -292,8 +319,10 @@ internal sealed class OrbForm : Form
     }
     protected override void WndProc(ref Message m)
     {
+        var refreshAfterDisplayChange = m.Msg is WmDisplayChange or WmDpiChanged;
         if (m.Msg == WmHotkey && m.WParam.ToInt32() == HotkeyId) app.TogglePrimary();
         base.WndProc(ref m);
+        if (refreshAfterDisplayChange) RefreshAfterMainWindowActivation();
     }
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -372,6 +401,7 @@ internal sealed class ChatForm : Form
         ApplyOpacity();
         Font = UiTheme.TextFont(10);
         AutoScaleMode = AutoScaleMode.Dpi;
+        Activated += (_, _) => app.RefreshOrbAfterMainWindowActivation();
         FormClosing += (_, e) => { if (e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; Hide(); } };
         pages.AddRange(new[] { MakeChat(), MakeReminders(), MakePremiumEmail(), MakeUsage(), MakeSettings(), MakeShortcuts() });
         foreach (var page in pages) { page.Dock = DockStyle.Fill; page.Visible = false; pageHost.Controls.Add(page); }
