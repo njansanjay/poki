@@ -31,6 +31,7 @@ internal sealed class PokiApp : ApplicationContext
     private ShortcutLauncherForm? launcher;
     private readonly System.Windows.Forms.Timer timer = new() { Interval = 15000 };
     private bool paused;
+    private bool exiting;
 
     public PokiApp(bool openChat = false)
     {
@@ -103,10 +104,10 @@ internal sealed class PokiApp : ApplicationContext
         if (launcher is null || launcher.IsDisposed)
         {
             launcher = new ShortcutLauncherForm(this);
-            launcher.VisibleChanged += (_, _) => { if (!launcher.Visible && !orb.IsDisposed) orb.RestoreCat(); };
+            launcher.VisibleChanged += (_, _) => { if (!launcher.Visible && !exiting && !orb.IsDisposed) orb.RestoreCat(); };
         }
         var anchor = orb.Bounds;
-        orb.HideForLauncher();
+        orb.PauseForLauncher();
         launcher.ShowNear(anchor);
     }
     internal void OpenShortcutSettings() { Open(4); chat?.FocusShortcutSettings(); }
@@ -117,7 +118,6 @@ internal sealed class PokiApp : ApplicationContext
         if (chat != null) { chat.TopMost = Data.TopMost; chat.ApplyOpacity(); }
         if (launcher != null) { launcher.TopMost = Data.TopMost; launcher.ApplyOpacity(); }
     }
-    internal void RefreshOrbAfterMainWindowActivation() => orb.RefreshAfterMainWindowActivation();
     internal void Notify(string title, string message)
     {
         if (paused || !Data.Notifications) return;
@@ -153,7 +153,15 @@ internal sealed class PokiApp : ApplicationContext
     }
     internal void Exit()
     {
-        timer.Stop(); Save(); tray.Visible = false; tray.Dispose(); launcher?.Dispose(); orb.Close(); chat?.Dispose(); ExitThread();
+        if (exiting) return;
+        exiting = true;
+        timer.Stop();
+        try { Save(); }
+        finally
+        {
+            timer.Dispose(); tray.Visible = false; tray.Dispose();
+            launcher?.Dispose(); orb.Close(); chat?.Dispose(); ExitThread();
+        }
     }
 }
 
@@ -165,6 +173,10 @@ internal sealed class OrbForm : Form
     private const int WmHotkey = 0x0312;
     private const int WmDisplayChange = 0x007E;
     private const int WmDpiChanged = 0x02E0;
+    private const int WmSize = 0x0005;
+    private const int WmSysCommand = 0x0112;
+    private const int ScMinimize = 0xF020;
+    private const int ScMaximize = 0xF030;
     private readonly PokiApp app;
     private string registeredHotkey = "Off";
     private Point dragOrigin;
@@ -177,6 +189,7 @@ internal sealed class OrbForm : Form
     private readonly LayeredCat catRenderer = new();
     private bool hiddenForFullscreen;
     private bool launcherActive;
+    private bool shellRestorePending;
     private long nextFullscreenCheck;
     public OrbForm(PokiApp app)
     {
@@ -185,6 +198,8 @@ internal sealed class OrbForm : Form
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.Manual;
         ShowInTaskbar = false;
+        MinimizeBox = false;
+        MaximizeBox = false;
         TopMost = app.Data.TopMost;
         Text = "POKI desktop cat";
         AccessibleName = "POKI cat — click for app shortcuts";
@@ -206,13 +221,31 @@ internal sealed class OrbForm : Form
         MouseCaptureChanged += (_, _) => { if (Control.MouseButtons == MouseButtons.None) pointerDown = false; };
         floatTimer.Tick += (_, _) => AnimateFloat();
     }
-    protected override CreateParams CreateParams { get { var parameters = base.CreateParams; parameters.ExStyle |= 0x00080000; return parameters; } }
+    protected override bool ShowWithoutActivation => true;
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            var parameters = base.CreateParams;
+            // Layered, tool, non-activating window: the pet is not a taskbar application.
+            parameters.ExStyle |= 0x00080000 | 0x00000080 | 0x08000000;
+            return parameters;
+        }
+    }
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e); ClampToScreen(); motion.Place(Left); floatClock.Restart(); floatTimer.Start();
         if (!UpdateFullscreenVisibility(true)) catRenderer.Render(this);
     }
-    internal void HideForLauncher() { launcherActive = true; Hide(); }
+    internal void PauseForLauncher()
+    {
+        launcherActive = true;
+        hiddenForFullscreen = false;
+        motion.Place(Left);
+        motion.Advance(0, Screen.FromRectangle(Bounds).WorkingArea, Width, app.Data.FloatAnimation, paused: true);
+        Show();
+        catRenderer.Render(this, motion.Frame, motion.FacingLeft, force: true);
+    }
     internal void RestoreCat()
     {
         launcherActive = false; ClampToScreen(); motion.Place(Left);
@@ -221,16 +254,17 @@ internal sealed class OrbForm : Form
     private void AnimateFloat()
     {
         var elapsed = Math.Min(floatClock.Elapsed.TotalSeconds, 0.1); floatClock.Restart();
+        if (WindowState != FormWindowState.Normal) { QueueShellRestore(); return; }
         if (UpdateFullscreenVisibility() || !Visible || pointerDown) return;
         var area = Screen.FromRectangle(Bounds).WorkingArea;
         motion.Advance(elapsed, area, Width, app.Data.FloatAnimation && SystemInformation.UIEffectsEnabled,
-            Bounds.Contains(Cursor.Position) || ContextMenuStrip?.Visible == true);
+            launcherActive || Bounds.Contains(Cursor.Position) || ContextMenuStrip?.Visible == true);
         Location = CatMotion.GroundLocation(area, Width, motion.X);
         catRenderer.Render(this, motion.Frame, motion.FacingLeft);
     }
     private bool UpdateFullscreenVisibility(bool force = false)
     {
-        if (launcherActive) return true;
+        if (launcherActive) return false;
         var now = Environment.TickCount64;
         if (!force && now < nextFullscreenCheck) return hiddenForFullscreen;
         nextFullscreenCheck = now + 250;
@@ -264,10 +298,29 @@ internal sealed class OrbForm : Form
         catRenderer.Dispose();
         if (!UpdateFullscreenVisibility(true) && IsHandleCreated && Visible) catRenderer.Render(this);
     }
-    internal void RefreshAfterMainWindowActivation()
+    private void RefreshAfterShellChange()
     {
-        if (IsDisposed || !IsHandleCreated || !Visible) return;
+        if (IsDisposed || !IsHandleCreated || !Visible || WindowState != FormWindowState.Normal) return;
 
+        NormalizeWindowBounds();
+        catRenderer.Render(this, motion.Frame, motion.FacingLeft, force: true);
+    }
+    private void QueueShellRestore()
+    {
+        if (shellRestorePending || IsDisposed || !IsHandleCreated) return;
+        shellRestorePending = true;
+        BeginInvoke((Action)(() =>
+        {
+            shellRestorePending = false;
+            if (IsDisposed || Disposing) return;
+            // Some docks call ShowWindow(SW_MINIMIZE) directly, bypassing WM_SYSCOMMAND.
+            // Restore only after Windows finishes processing its state change.
+            if (WindowState != FormWindowState.Normal) WindowState = FormWindowState.Normal;
+            RefreshAfterShellChange();
+        }));
+    }
+    private void NormalizeWindowBounds()
+    {
         var size = Math.Clamp(app.Data.OrbSize, 40, 192);
         var expectedSize = new Size(size, size);
         if (Size != expectedSize)
@@ -285,8 +338,6 @@ internal sealed class OrbForm : Form
             Location = expectedLocation;
             motion.Place(Left);
         }
-
-        catRenderer.Render(this, motion.Frame, motion.FacingLeft, force: true);
     }
     protected override void OnHandleCreated(EventArgs e)
     {
@@ -319,10 +370,17 @@ internal sealed class OrbForm : Form
     }
     protected override void WndProc(ref Message m)
     {
+        var command = (int)(m.WParam.ToInt64() & 0xFFF0);
+        if (m.Msg == WmSysCommand && command is ScMinimize or ScMaximize)
+        {
+            m.Result = IntPtr.Zero;
+            return;
+        }
         var refreshAfterDisplayChange = m.Msg is WmDisplayChange or WmDpiChanged;
         if (m.Msg == WmHotkey && m.WParam.ToInt32() == HotkeyId) app.TogglePrimary();
         base.WndProc(ref m);
-        if (refreshAfterDisplayChange) RefreshAfterMainWindowActivation();
+        if (m.Msg == WmSize && WindowState != FormWindowState.Normal) QueueShellRestore();
+        if (refreshAfterDisplayChange) RefreshAfterShellChange();
     }
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -401,7 +459,6 @@ internal sealed class ChatForm : Form
         ApplyOpacity();
         Font = UiTheme.TextFont(10);
         AutoScaleMode = AutoScaleMode.Dpi;
-        Activated += (_, _) => app.RefreshOrbAfterMainWindowActivation();
         FormClosing += (_, e) => { if (e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; Hide(); } };
         pages.AddRange(new[] { MakeChat(), MakeReminders(), MakePremiumEmail(), MakeUsage(), MakeSettings(), MakeShortcuts() });
         foreach (var page in pages) { page.Dock = DockStyle.Fill; page.Visible = false; pageHost.Controls.Add(page); }

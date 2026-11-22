@@ -1,7 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <Version>0.1.8</Version>
+    <Version>0.1.9</Version>
+    <AssemblyTitle>POKI Desktop Companion</AssemblyTitle>
+    <Product>POKI</Product>
+    <Description>Animated desktop cat and shortcut launcher.</Description>
     <TargetFramework>net6.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>

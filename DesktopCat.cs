@@ -135,6 +135,9 @@ internal sealed class LayeredCat : IDisposable
     private Point previousLocation;
     public void Render(Form window, int frame = 4, bool left = false, bool force = false)
     {
+        // An iconic HWND has Windows' minimized-icon dimensions, not the pet canvas size.
+        // Never cache or paint a sprite using that rectangle while restore is pending.
+        if (window.WindowState != FormWindowState.Normal) return;
         if (canvas != window.Size || memory == IntPtr.Zero)
         {
             Dispose(); canvas = window.Size; memory = CreateCompatibleDC(IntPtr.Zero);

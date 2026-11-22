@@ -1,6 +1,6 @@
 # POKI releases
 
-Current release: **0.1.8**.
+Current release: **0.1.9**.
 
 Increment the patch digit for each published release. After patch 9, increment
 the minor number and reset patch to 0: `0.1.8` → `0.1.9` → `0.2.0`.

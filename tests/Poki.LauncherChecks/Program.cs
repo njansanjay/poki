@@ -9,6 +9,12 @@ internal static class Program
         protected override CreateParams CreateParams { get { var value = base.CreateParams; value.ExStyle |= 0x80000; return value; } }
     }
     [DllImport("user32.dll")] private static extern int GetGuiResources(IntPtr process, int flags);
+    [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr window, int command);
+    [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr window);
+    [DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr window, int index);
+    [StructLayout(LayoutKind.Sequential)] private struct NativeRect { public int Left, Top, Right, Bottom; }
+    [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr window, out NativeRect rect);
     private static int checks;
     private static void Check(bool result, string name)
     {
@@ -18,7 +24,9 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        if (args.Contains("--cat-window")) { CheckCatWindow(); return; }
         if (args.Contains("--render-ui")) { RenderUi(); return; }
+        CheckCatWindow();
         // No account access, app launches, network calls or writes to the user's POKI data.
         using (var field = new PokiTextBox { Size = new Size(320, 44), Text = "Draft", PlaceholderText = "Message" })
         {
@@ -174,6 +182,65 @@ internal static class Program
             Directory.Delete(testDirectory);
         }
         Console.WriteLine($"{checks} launcher checks passed.");
+    }
+    private static void CheckCatWindow()
+    {
+        var checksBefore = checks;
+        // Only a cat window with fixture settings: no user data, accounts, tray, or startup writes.
+        var app = (PokiApp)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(PokiApp));
+        typeof(PokiApp).GetField("Data", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .SetValue(app, new AppData { OrbSize = 80, OrbX = 400, OrbY = 400, OpenHotkey = "Off", HideCatInFullscreen = false, TopMost = false });
+        using var orb = new OrbForm(app);
+        typeof(PokiApp).GetField("orb", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .SetValue(app, orb);
+        orb.Show(); Pump(100);
+        GetWindowRect(orb.Handle, out var initial);
+        Check(initial.Right - initial.Left == 80 && initial.Bottom - initial.Top == 80, "Cat starts at configured native dimensions");
+        SendMessage(orb.Handle, 0x0112, new IntPtr(0xF020), IntPtr.Zero); // SC_MINIMIZE: taskbar/dock toggle.
+        Pump(100);
+        GetWindowRect(orb.Handle, out var minimized);
+        Console.WriteLine($"After shell minimize: state={orb.WindowState}, iconic={IsIconic(orb.Handle)}, native={minimized.Right - minimized.Left}x{minimized.Bottom - minimized.Top}");
+        Check(!IsIconic(orb.Handle), "Taskbar minimize cannot minimize the desktop cat");
+        for (var i = 0; i < 3; i++)
+        {
+            ShowWindow(orb.Handle, 6); // A dock can bypass WM_SYSCOMMAND with SW_MINIMIZE.
+            Pump(120);
+            GetWindowRect(orb.Handle, out var restored);
+            Check(!IsIconic(orb.Handle) && orb.WindowState == FormWindowState.Normal &&
+                restored.Right - restored.Left == 80 && restored.Bottom - restored.Top == 80 &&
+                Math.Abs(restored.Left - initial.Left) <= 5 && restored.Top == initial.Top,
+                "Direct native minimize recovers size and walking position: " + i);
+        }
+        SendMessage(orb.Handle, 0x0112, new IntPtr(0xF030), IntPtr.Zero); // SC_MAXIMIZE.
+        Pump(100);
+        Check(orb.WindowState == FormWindowState.Normal && orb.Size == new Size(80, 80), "Shell maximize cannot stretch the desktop cat");
+        Check((GetWindowLong(orb.Handle, -20) & 0x80) != 0 && !orb.ShowInTaskbar, "Cat is a tool window, not a taskbar application window");
+        var beforeWalk = orb.Left;
+        Pump(3500);
+        Check(orb.Left > beforeWalk && orb.Top == initial.Top, "Walking resumes along the same ground after shell commands");
+        var launcherAnchor = orb.Bounds;
+        app.ShowLauncher();
+        Pump(500);
+        using var launcher = (ShortcutLauncherForm)typeof(PokiApp)
+            .GetField("launcher", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(app)!;
+        Check(launcher.Visible && orb.Visible && orb.Bounds == launcherAnchor,
+            "Opening shortcuts keeps the cat visible at the same size and position");
+        var motion = (CatMotion)typeof(OrbForm)
+            .GetField("motion", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(orb)!;
+        Check(motion.Frame == 4 && !launcher.Bounds.IntersectsWith(orb.Bounds),
+            "Cat sits idle below the launcher without being covered");
+        Pump(500);
+        Check(orb.Bounds == launcherAnchor && motion.Frame == 4, "Cat stays idle for as long as shortcuts remain open");
+        launcher.Hide();
+        Pump(500);
+        Check(orb.Visible && orb.Left > launcherAnchor.Left && orb.Top == launcherAnchor.Top,
+            "Closing shortcuts resumes walking without hiding the cat");
+        Console.WriteLine($"{checks - checksBefore} cat window checks passed.");
+    }
+    private static void Pump(int milliseconds)
+    {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        while (clock.ElapsedMilliseconds < milliseconds) { Application.DoEvents(); Thread.Sleep(5); }
     }
     private static void RenderUi()
     {

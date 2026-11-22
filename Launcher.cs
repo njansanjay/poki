@@ -305,6 +305,20 @@ internal sealed class ShortcutLauncherForm : Form
         var close = ActionButton(false, "Close shortcuts", (_, _) => Hide());
         expand.Location = new Point(0, 15); close.Location = new Point(52, 15);
         actions.Controls.Add(expand); actions.Controls.Add(close); header.Controls.Add(actions);
+        var footer = new Panel { Dock = DockStyle.Bottom, Height = 32, Padding = new Padding(0, 4, 0, 0), BackColor = UiTheme.Canvas };
+        var quit = new PokiButton
+        {
+            Text = "Quit Poki", AccessibleName = "Quit Poki",
+            AccessibleDescription = "Stop Poki completely, including the desktop cat.",
+            Dock = DockStyle.Right, Width = 96, Font = UiTheme.TextFont(8.5f),
+            BackColor = UiTheme.Sidebar, ForeColor = UiTheme.Muted,
+            FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, TabStop = true
+        };
+        quit.FlatAppearance.BorderSize = 0;
+        quit.FlatAppearance.MouseOverBackColor = UiTheme.Hover;
+        tips.SetToolTip(quit, "Quit Poki and stop the desktop cat");
+        quit.Click += (_, _) => app.Exit();
+        footer.Controls.Add(quit);
         grid.ShortcutClicked += shortcut =>
         {
             try { ShortcutService.Open(shortcut); Hide(); }
@@ -320,7 +334,7 @@ internal sealed class ShortcutLauncherForm : Form
                 status.Visible = true; tips.SetToolTip(status, ex.Message);
             }
         };
-        Controls.Add(grid); Controls.Add(status); Controls.Add(header);
+        Controls.Add(grid); Controls.Add(status); Controls.Add(footer); Controls.Add(header);
         KeyDown += (_, e) => { if (e.KeyCode == Keys.Escape) { e.Handled = true; Hide(); } };
         Deactivate += (_, _) => Hide();
         FormClosing += (_, e) => { if (e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; Hide(); } };
@@ -337,7 +351,7 @@ internal sealed class ShortcutLauncherForm : Form
         RefreshShortcuts();
         var area = Screen.FromRectangle(anchor).WorkingArea;
         var rows = Math.Max(1, (app.Data.AppShortcuts.Count + 3) / 4);
-        Size = new Size(Math.Min(390, area.Width), Math.Min(Math.Min(520, 126 + rows * 84), area.Height));
+        Size = new Size(Math.Min(390, area.Width), Math.Min(Math.Min(552, 158 + rows * 84), area.Height));
         Location = PrimaryViews.PopupLocation(anchor, Size, area);
         TopMost = app.Data.TopMost; Show(); Activate();
     }
