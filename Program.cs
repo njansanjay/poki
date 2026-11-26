@@ -194,6 +194,7 @@ internal sealed class OrbForm : Form
     public OrbForm(PokiApp app)
     {
         this.app = app;
+        catRenderer.Configure(app.Data.CatStyle);
         AutoScaleMode = AutoScaleMode.None;
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.Manual;
@@ -201,7 +202,7 @@ internal sealed class OrbForm : Form
         MinimizeBox = false;
         MaximizeBox = false;
         TopMost = app.Data.TopMost;
-        Text = "POKI desktop cat";
+        Text = "Poki";
         AccessibleName = "POKI cat — click for app shortcuts";
         Icon = BrandAssets.CreateIcon(); Cursor = Cursors.Hand;
         var size = Math.Clamp(app.Data.OrbSize, 40, 192);
@@ -292,10 +293,11 @@ internal sealed class OrbForm : Form
     public void ApplyAppearance()
     {
         TopMost = app.Data.TopMost;
+        catRenderer.Configure(app.Data.CatStyle);
         var size = Math.Clamp(app.Data.OrbSize, 40, 192);
         MaximumSize = Size.Empty; MinimumSize = new Size(size, size); MaximumSize = MinimumSize; Size = MinimumSize;
         ClampToScreen(); motion.Place(Left);
-        catRenderer.Dispose();
+        catRenderer.InvalidateFrames();
         if (!UpdateFullscreenVisibility(true) && IsHandleCreated && Visible) catRenderer.Render(this);
     }
     private void RefreshAfterShellChange()
@@ -452,7 +454,7 @@ internal sealed class ChatForm : Form
     {
         this.app = app;
         email = new EmailService(app);
-        Text = "POKI  ·  Desktop assistant"; Size = new Size(1000, 720); MinimumSize = new Size(780, 580);
+        Text = "Poki"; Size = new Size(1000, 720); MinimumSize = new Size(780, 580);
         FormBorderStyle = FormBorderStyle.None; Padding = new Padding(1);
         StartPosition = FormStartPosition.CenterScreen; TopMost = app.Data.TopMost;
         BackColor = Canvas; ForeColor = Color.White; Icon = PokiIcon.Create();
@@ -1217,6 +1219,12 @@ internal sealed class ChatForm : Form
         var size = new PokiNumber { Minimum = 40, Maximum = 192, Increment = 4, Value = Math.Clamp(app.Data.OrbSize, 40, 192), Width = 140, AccessibleName = "Desktop cat size in pixels" };
         size.ValueChanged += (_, _) => { app.Data.OrbSize = (int)size.Value; app.Save(); app.ApplyAppearance(); };
         launcherSection.Controls.Add(size);
+        var catChoices = new CatStylePicker { Width = 610, Value = Array.IndexOf(CatSprites.Styles, CatSprites.NormalizeStyle(app.Data.CatStyle)) };
+        catChoices.ValueChanged += (_, _) =>
+        {
+            app.Data.CatStyle = CatSprites.Styles[catChoices.Value]; app.Save(); app.ApplyAppearance();
+        };
+        launcherSection.Controls.Add(catChoices);
         launcherSection.Controls.Add(SecondaryButton("Preview one-touch view", (_, _) => app.TogglePrimary()));
         var arranging = false;
         panel.Layout += (_, _) =>
@@ -1235,7 +1243,7 @@ internal sealed class ChatForm : Form
                 foreach (Control content in card.Controls)
                     foreach (Control item in content.Controls)
                     {
-                        if (item is PokiTextBox or PokiComboBox or ListBox or PokiToggle) item.Width = cardWidth - 54;
+                        if (item is PokiTextBox or PokiComboBox or ListBox or PokiToggle || item == catChoices) item.Width = cardWidth - 54;
                         else if (item is Label label && !label.AutoSize) label.Width = cardWidth - 54;
                     }
             }

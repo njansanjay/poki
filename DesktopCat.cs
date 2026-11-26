@@ -7,23 +7,36 @@ namespace Poki;
 
 internal static class CatSprites
 {
-    private static readonly Lazy<Bitmap> sheet = new(() =>
+    public static readonly string[] Styles = { "Slim", "Lean", "Original", "Chubby", "Extra chubby" };
+    public static string NormalizeStyle(string? style) => Styles.Contains(style) ? style! : "Original";
+    private static readonly Dictionary<string, Bitmap> sheets = new();
+    public static Bitmap Sheet => GetSheet("Original");
+    private static Bitmap GetSheet(string style)
     {
-        using var stream = typeof(CatSprites).Assembly.GetManifestResourceStream("Poki.Assets.cat-sprites.png")!;
-        using var bitmap = new Bitmap(stream);
-        return new Bitmap(bitmap);
-    });
-    public static Bitmap Sheet => sheet.Value;
-    public static Rectangle Cell(int frame)
+        style = NormalizeStyle(style);
+        if (sheets.TryGetValue(style, out var sheet)) return sheet;
+        var filename = style switch
+        {
+            "Slim" => "cat-slim.png", "Lean" => "cat-lean.png",
+            "Chubby" => "cat-chubby.png", "Extra chubby" => "cat-extra-chubby.png",
+            _ => "cat-sprites.png"
+        };
+        using var stream = typeof(CatSprites).Assembly.GetManifestResourceStream("Poki.Assets." + filename)!;
+        using var source = new Bitmap(stream);
+        sheet = new Bitmap(source); sheets.Add(style, sheet); return sheet;
+    }
+    public static Rectangle Cell(int frame) => Cell(frame, Sheet);
+    private static Rectangle Cell(int frame, Bitmap sheet)
     {
         frame = Math.Clamp(frame, 0, 7);
-        var left = (int)Math.Round(frame % 4 * Sheet.Width / 4.0);
-        var top = (int)Math.Round(frame / 4 * Sheet.Height / 2.0);
-        return Rectangle.FromLTRB(left, top, (int)Math.Round((frame % 4 + 1) * Sheet.Width / 4.0),
-            (int)Math.Round((frame / 4 + 1) * Sheet.Height / 2.0));
+        return Rectangle.FromLTRB((int)Math.Round(frame % 4 * sheet.Width / 4.0),
+            (int)Math.Round(frame / 4 * sheet.Height / 2.0),
+            (int)Math.Round((frame % 4 + 1) * sheet.Width / 4.0),
+            (int)Math.Round((frame / 4 + 1) * sheet.Height / 2.0));
     }
-    public static void Draw(Graphics graphics, Rectangle destination, int frame = 4, bool left = false)
+    public static void Draw(Graphics graphics, Rectangle destination, int frame = 4, bool left = false, string style = "Original")
     {
+        var sheet = GetSheet(style);
         var state = graphics.Save();
         graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
         graphics.PixelOffsetMode = PixelOffsetMode.Half;
@@ -32,11 +45,11 @@ internal static class CatSprites
             graphics.TranslateTransform(destination.Left * 2 + destination.Width, 0);
             graphics.ScaleTransform(-1, 1);
         }
-        graphics.DrawImage(Sheet, destination, Cell(frame), GraphicsUnit.Pixel);
+        // Only the chosen illustration changes; never stretch its body or remove colors.
+        graphics.DrawImage(sheet, destination, Cell(frame, sheet), GraphicsUnit.Pixel);
         graphics.Restore(state);
     }
 }
-
 // Time-based movement is independent of the Windows timer's frequency.
 internal sealed class CatMotion
 {
@@ -133,6 +146,13 @@ internal sealed class LayeredCat : IDisposable
     private IntPtr memory, original;
     private int displayed = -1;
     private Point previousLocation;
+    private string style = "Original";
+    public void Configure(string value)
+    {
+        value = CatSprites.NormalizeStyle(value);
+        if (style == value) return;
+        InvalidateFrames(); style = value;
+    }
     public void Render(Form window, int frame = 4, bool left = false, bool force = false)
     {
         // An iconic HWND has Windows' minimized-icon dimensions, not the pet canvas size.
@@ -140,7 +160,7 @@ internal sealed class LayeredCat : IDisposable
         if (window.WindowState != FormWindowState.Normal) return;
         if (canvas != window.Size || memory == IntPtr.Zero)
         {
-            Dispose(); canvas = window.Size; memory = CreateCompatibleDC(IntPtr.Zero);
+            InvalidateFrames(); canvas = window.Size; memory = CreateCompatibleDC(IntPtr.Zero);
         }
         var key = frame + (left ? 8 : 0);
         if (!force && key == displayed && previousLocation == window.Location) return;
@@ -148,7 +168,7 @@ internal sealed class LayeredCat : IDisposable
         {
             using var bitmap = new Bitmap(canvas.Width, canvas.Height, PixelFormat.Format32bppPArgb);
             using (var graphics = Graphics.FromImage(bitmap))
-                CatSprites.Draw(graphics, new Rectangle(0, (int)(canvas.Height * 0.13), canvas.Width, canvas.Height), frame, left);
+                CatSprites.Draw(graphics, new Rectangle(0, (int)(canvas.Height * 0.13), canvas.Width, canvas.Height), frame, left, style);
             handle = bitmap.GetHbitmap(Color.FromArgb(0)); frames.Add(key, handle);
         }
         var selected = SelectObject(memory, handle);
@@ -164,7 +184,7 @@ internal sealed class LayeredCat : IDisposable
         }
         finally { ReleaseDC(IntPtr.Zero, dc); }
     }
-    public void Dispose()
+    public void InvalidateFrames()
     {
         if (memory != IntPtr.Zero)
         {
@@ -173,5 +193,9 @@ internal sealed class LayeredCat : IDisposable
             DeleteDC(memory);
         }
         frames.Clear(); memory = original = IntPtr.Zero; displayed = -1;
+    }
+    public void Dispose()
+    {
+        InvalidateFrames();
     }
 }

@@ -9,6 +9,7 @@ public sealed class AppData
     public int OrbX { get; set; } = 50;
     public int OrbY { get; set; } = 100;
     public int OrbSize { get; set; } = 96;
+    public string CatStyle { get; set; } = "Original";
     public bool FloatAnimation { get; set; } = true;
     public bool HideCatInFullscreen { get; set; } = true;
     public bool TopMost { get; set; } = true;
